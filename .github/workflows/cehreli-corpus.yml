@@ -1,0 +1,51 @@
+name: Cehreli book corpus
+
+on:
+  push:
+    branches:
+      - netbsd-abi-cehreli-corpus
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install reference DMD
+        uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: dmd-latest
+
+      - name: Record reference compiler
+        shell: bash
+        run: |
+          echo "REFERENCE_DMD=$(command -v dmd)" >> "$GITHUB_ENV"
+          dmd --version
+
+      - name: Build candidate DMD, druntime, and Phobos
+        shell: bash
+        run: |
+          make -j2 MODEL=64 HOST_DMD="$REFERENCE_DMD" ENABLE_RELEASE=1 phobos
+          generated/linux/release/64/dmd --version
+
+      - name: Compile and run every Çehreli sample
+        shell: bash
+        run: |
+          bash compiler/test/cehreli/run.sh \
+            "$PWD/generated/linux/release/64/dmd" \
+            "$REFERENCE_DMD" \
+            "$PWD/cehreli-results"
+
+      - name: Publish corpus ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cehreli-corpus-linux-amd64
+          path: cehreli-results
+          if-no-files-found: warn
