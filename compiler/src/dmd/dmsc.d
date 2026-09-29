@@ -69,6 +69,7 @@ void backend_init(const ref Param params, const ref DMDparams driverParams, cons
         case Target.OS.linux:   exfmt = is64 ? EX_LINUX64   : EX_LINUX;   break;
         case Target.OS.OSX:     exfmt = is64 ? EX_OSX64     : EX_OSX;     break;
         case Target.OS.FreeBSD: exfmt = is64 ? EX_FREEBSD64 : EX_FREEBSD; break;
+        case Target.OS.NetBSD: assert(target.isX86_64); exfmt = EX_NETBSD64; break;
         case Target.OS.OpenBSD: exfmt = is64 ? EX_OPENBSD64 : EX_OPENBSD; break;
         case Target.OS.Solaris: exfmt = is64 ? EX_SOLARIS64 : EX_SOLARIS; break;
         case Target.OS.DragonFlyBSD: assert(is64); exfmt = EX_DRAGONFLYBSD64; break;

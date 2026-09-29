@@ -34,10 +34,11 @@ enum TargetOS : ushort
     Solaris      = 0x20,
     DragonFlyBSD = 0x40,
     Hurd         = 0x80,
+    NetBSD       = 0x100,
 
     // Combination masks
-    all = linux | Windows | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd,
-    Posix = linux | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd,
+    all = linux | Windows | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd | NetBSD,
+    Posix = linux | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd | NetBSD,
 }
 
 // Detect the current TargetOS
@@ -60,6 +61,10 @@ else version(OpenBSD)
 else version(FreeBSD)
 {
     private enum targetOS = TargetOS.FreeBSD;
+}
+else version(NetBSD)
+{
+    private enum targetOS = TargetOS.NetBSD;
 }
 else version(DragonFlyBSD)
 {
@@ -813,6 +818,7 @@ dmd -cov -unittest myprog.d
                     $(LI $(I dragonflybsd): DragonFlyBSD)
                     $(LI $(I freebsd): FreeBSD)
                     $(LI $(I linux): Linux)
+                    $(LI $(I netbsd): NetBSD)
                     $(LI $(I openbsd): OpenBSD)
                     $(LI $(I osx): OSX)
                     $(LI $(I solaris): Solaris)
@@ -907,7 +913,7 @@ dmd -cov -unittest myprog.d
                        $(LI `freestanding` for no operating system)
                        $(LI `darwin` or `osx` for MacOS)
                        $(LI `dragonfly` or `dragonflybsd` for DragonflyBSD)
-                       $(LI `freebsd`, `openbsd`, `linux`, `solaris`, `hurd` or `windows` for their respective operating systems)
+                       $(LI `freebsd`, `netbsd`, `openbsd`, `linux`, `solaris`, `hurd` or `windows` for their respective operating systems)
                    )
                    $(LI $(I cenv) is the C runtime environment and is optional:)
                    $(UL

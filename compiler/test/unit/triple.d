@@ -64,3 +64,12 @@ unittest
     assert(triple.os == Target.OS.FreeBSD);
     assert(triple.osMajor == 12);
 }
+
+@("-target=x86_64-unknown-netbsd10.1")
+unittest
+{
+    auto triple = Triple("x86_64-unknown-netbsd10.1");
+    assert(triple.isX86_64);
+    assert(triple.os == Target.OS.NetBSD);
+    assert(triple.osMajor == 10);
+}

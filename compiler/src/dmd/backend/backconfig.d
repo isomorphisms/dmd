@@ -233,6 +233,19 @@ void out_config_init(
             cfg.flags |= CFGalwaysframe;
         cfg.objfmt = OBJ_ELF;
     }
+    if (cfg.exe == EX_NETBSD64)
+    {
+        assert(model == 64);
+        cfg.ehmethod = useExceptions ? EHmethod.EH_DWARF : EHmethod.EH_NONE;
+        cfg.fpxmmregs = true;
+        cfg.avx = avx;
+        cfg.flags |= CFGnoebp;
+        if (!exe)
+            cfg.flags3 |= CFG3pic;
+        if (symdebug)
+            cfg.flags |= CFGalwaysframe;
+        cfg.objfmt = OBJ_ELF;
+    }
     if (cfg.exe & (EX_OPENBSD | EX_OPENBSD64))
     {
         if (model == 64)
