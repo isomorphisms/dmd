@@ -16,6 +16,7 @@ reference_dmd=${2:?reference dmd path required}
 result_dir=${3:-cehreli-results}
 archive_url=${CEHRELI_ARCHIVE_URL:-https://www.ddili.org/ders/d.en/Programming_in_D_code_samples.zip}
 run_seconds=${CEHRELI_RUN_SECONDS:-5}
+compile_seconds=${CEHRELI_COMPILE_SECONDS:-30}
 
 mkdir -p "$result_dir/logs" "$result_dir/bin"
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/cehreli.XXXXXX")
@@ -64,6 +65,36 @@ hash_file() {
     else
         echo unknown
     fi
+}
+
+command_limited() {
+    local seconds=$1 log=$2
+    shift 2
+
+    if command -v timeout >/dev/null 2>&1; then
+        timeout --signal=TERM --kill-after=2 "${seconds}s" "$@" </dev/null >"$log" 2>&1
+        return $?
+    fi
+    if command -v gtimeout >/dev/null 2>&1; then
+        gtimeout --signal=TERM --kill-after=2 "${seconds}s" "$@" </dev/null >"$log" 2>&1
+        return $?
+    fi
+
+    "$@" </dev/null >"$log" 2>&1 &
+    local pid=$!
+    (
+        sleep "$seconds"
+        kill -TERM "$pid" 2>/dev/null || exit 0
+        sleep 2
+        kill -KILL "$pid" 2>/dev/null || true
+    ) &
+    local watchdog=$!
+
+    wait "$pid"
+    local rc=$?
+    kill "$watchdog" 2>/dev/null || true
+    wait "$watchdog" 2>/dev/null || true
+    return "$rc"
 }
 
 run_limited() {
@@ -130,9 +161,9 @@ for file in "${files[@]}"; do
     ref_compile_log="$result_dir/logs/$id.ref.compile.log"
     cand_compile_log="$result_dir/logs/$id.cand.compile.log"
 
-    "$reference_dmd" -o- -I"$samples" -I"$dir" "$file" >"$ref_compile_log" 2>&1
+    command_limited "$compile_seconds" "$ref_compile_log" "$reference_dmd" -o- -I"$samples" -I"$dir" "$file"
     ref_compile=$?
-    "$candidate_dmd" -o- -I"$samples" -I"$dir" "$file" >"$cand_compile_log" 2>&1
+    command_limited "$compile_seconds" "$cand_compile_log" "$candidate_dmd" -o- -I"$samples" -I"$dir" "$file"
     cand_compile=$?
 
     ref_link=-
@@ -157,9 +188,9 @@ for file in "${files[@]}"; do
         ref_link_log="$result_dir/logs/$id.ref.link.log"
         cand_link_log="$result_dir/logs/$id.cand.link.log"
 
-        "$reference_dmd" -i -I"$samples" -I"$dir" "$file" -of"$ref_exe" >"$ref_link_log" 2>&1
+        command_limited "$compile_seconds" "$ref_link_log" "$reference_dmd" -i -I"$samples" -I"$dir" "$file" -of"$ref_exe"
         ref_link=$?
-        "$candidate_dmd" -i -I"$samples" -I"$dir" "$file" -of"$cand_exe" >"$cand_link_log" 2>&1
+        command_limited "$compile_seconds" "$cand_link_log" "$candidate_dmd" -i -I"$samples" -I"$dir" "$file" -of"$cand_exe"
         cand_link=$?
 
         if [ "$ref_link" -eq 0 ] && [ "$cand_link" -ne 0 ]; then
