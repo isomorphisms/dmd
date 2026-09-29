@@ -647,7 +647,7 @@ dmd -cov -unittest myprog.d
         Option("m32",
             "generate 32 bit code",
             `$(UNIX Compile a 32 bit executable. This is the default for the 32 bit dmd.)`,
-            cast(TargetOS) (TargetOS.all & ~cast(uint)TargetOS.DragonFlyBSD)  // available on all OS'es except DragonFly, which does not support 32-bit binaries
+            cast(TargetOS) (TargetOS.all & ~cast(uint)(TargetOS.DragonFlyBSD | TargetOS.NetBSD))  // DragonFly and NetBSD are supported as 64-bit targets only
         ),
         Option("m32mscoff",
             "generate 32 bit code and write MS-COFF object files (deprecated use `-m32`)",

@@ -9,6 +9,12 @@ else static assert(0, "Posix must be predefined");
 version (ELFv1) {}
 else static assert(0, "ELFv1 must be predefined");
 
+version (X86_64) {}
+else static assert(0, "X86_64 must be predefined");
+
+static assert(void*.sizeof == 8);
+static assert(real.sizeof == 16);
+
 version (FreeBSD) static assert(0, "NetBSD must not define FreeBSD");
 version (OpenBSD) static assert(0, "NetBSD must not define OpenBSD");
 version (linux) static assert(0, "NetBSD must not define linux");
@@ -35,5 +41,11 @@ extern(C) Pair passPair(Pair value, double scale)
 extern(C) Mixed passMixed(Mixed value, long delta)
 {
     value.y += delta;
+    return value;
+}
+
+
+extern(C) real passReal(real value)
+{
     return value;
 }
