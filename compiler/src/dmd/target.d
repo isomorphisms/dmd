@@ -59,6 +59,8 @@ Target.OS defaultTargetOS() @safe
         return Target.OS.OSX;
     else version (FreeBSD)
         return Target.OS.FreeBSD;
+    else version (NetBSD)
+        return Target.OS.NetBSD;
     else version (OpenBSD)
         return Target.OS.OpenBSD;
     else version (Solaris)
@@ -186,13 +188,14 @@ void addPredefinedGlobalIdentifiers(const ref Target tgt)
     {
         if (tgt.os & OS.Posix)
             predef("Posix");
-        if (tgt.os & (OS.linux | OS.FreeBSD | OS.OpenBSD | OS.DragonFlyBSD | OS.Solaris | OS.Hurd))
+        if (tgt.os & (OS.linux | OS.FreeBSD | OS.NetBSD | OS.OpenBSD | OS.DragonFlyBSD | OS.Solaris | OS.Hurd))
             predef("ELFv1");
         switch (tgt.os)
         {
             case OS.none:         { predef("FreeStanding"); break; }
             case OS.linux:        { predef("linux");        break; }
             case OS.OpenBSD:      { predef("OpenBSD");      break; }
+            case OS.NetBSD:       { predef("NetBSD");       break; }
             case OS.DragonFlyBSD: { predef("DragonFlyBSD"); break; }
             case OS.Solaris:      { predef("Solaris");      break; }
             case OS.Hurd:         { predef("Hurd");         break; }
@@ -325,7 +328,7 @@ extern (C++) struct Target
     import dmd.tokens : EXP;
 
     /// Bit decoding of the Target.OS
-    enum OS : ubyte
+    enum OS : ushort
     {
         /* These are mutually exclusive; one and only one is set.
          * Match spelling and casing of corresponding version identifiers
@@ -339,10 +342,11 @@ extern (C++) struct Target
         Solaris      = 0x20,
         DragonFlyBSD = 0x40,
         Hurd         = 0x80,
+        NetBSD       = 0x100,
 
         // Combination masks
-        all = linux | Windows | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd,
-        Posix = linux | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd,
+        all = linux | Windows | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd | NetBSD,
+        Posix = linux | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd | NetBSD,
     }
 
     extern(D) enum ObjectFormat : ubyte
@@ -461,7 +465,7 @@ extern (C++) struct Target
             ptrsize = 8;
         }
 
-        if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
+        if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
         {
             realsize = 12;
             realpad = 2;
@@ -484,7 +488,7 @@ extern (C++) struct Target
 
         if (isX86_64 || isAArch64)
         {
-            if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
+            if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
             {
                 realsize = 16;
                 realpad = 6;
@@ -519,7 +523,7 @@ extern (C++) struct Target
             dll_ext = "dll";
             run_noext = false;
         }
-        else if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.OSX | Target.OS.Hurd))
+        else if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.OSX | Target.OS.Hurd))
         {
             obj_ext = "o";
             lib_ext = "a";
@@ -1465,7 +1469,7 @@ struct TargetC
         shortsize = 2;
         intsize = 4;
         long_longsize = 8;
-        if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
+        if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
             longsize = 4;
         else if (os == Target.OS.OSX)
             longsize = 4;
@@ -1475,7 +1479,7 @@ struct TargetC
             assert(0);
         if (target.isX86_64 || target.isAArch64)
         {
-            if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
+            if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
                 longsize = 8;
             else if (os == Target.OS.OSX)
                 longsize = 8;
@@ -1508,7 +1512,7 @@ struct TargetC
         if (os == Target.OS.Windows)
             bitFieldStyle = BitFieldStyle.MS;
         else if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OSX |
-                       Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris |
+                       Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris |
                        Target.OS.Hurd))
             bitFieldStyle = BitFieldStyle.Gcc_Clang;
         else
@@ -1570,7 +1574,7 @@ struct TargetCPP
     extern (D) void initialize(ref const Param params, ref const Target target) @safe
     {
         const os = target.os;
-        if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
+        if (os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.DragonFlyBSD | Target.OS.Solaris | Target.OS.Hurd))
             twoDtorInVtable = true;
         else if (os == Target.OS.OSX)
             twoDtorInVtable = true;
@@ -1584,7 +1588,7 @@ struct TargetCPP
         exceptions = (os & Target.OS.Posix) != 0;
         if (os == Target.OS.Windows)
             runtime = Runtime.Microsoft;
-        else if (os & (Target.OS.linux | Target.OS.DragonFlyBSD | Target.OS.Hurd))
+        else if (os & (Target.OS.linux | Target.OS.NetBSD | Target.OS.DragonFlyBSD | Target.OS.Hurd))
             runtime = Runtime.GNU;
         else if (os & (Target.OS.OSX | Target.OS.FreeBSD | Target.OS.OpenBSD))
             runtime = Runtime.LLVM;
@@ -1608,7 +1612,7 @@ struct TargetCPP
         import dmd.mangle.cpp : toCppMangleItanium;
         import dmd.mangle.cppwin : toCppMangleMSVC;
 
-        if (target.os & (Target.OS.linux | Target.OS.OSX | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.Solaris | Target.OS.DragonFlyBSD | Target.OS.Hurd))
+        if (target.os & (Target.OS.linux | Target.OS.OSX | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.Solaris | Target.OS.DragonFlyBSD | Target.OS.Hurd))
             return toCppMangleItanium(s);
         if (target.os == Target.OS.Windows)
             return toCppMangleMSVC(s);
@@ -1628,7 +1632,7 @@ struct TargetCPP
         import dmd.mangle.cpp : cppTypeInfoMangleItanium;
         import dmd.mangle.cppwin : cppTypeInfoMangleMSVC;
 
-        if (target.os & (Target.OS.linux | Target.OS.OSX | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.Solaris | Target.OS.DragonFlyBSD | Target.OS.Hurd))
+        if (target.os & (Target.OS.linux | Target.OS.OSX | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.Solaris | Target.OS.DragonFlyBSD | Target.OS.Hurd))
             return cppTypeInfoMangleItanium(cd);
         if (target.os == Target.OS.Windows)
             return cppTypeInfoMangleMSVC(cd);

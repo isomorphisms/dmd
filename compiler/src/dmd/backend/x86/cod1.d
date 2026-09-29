@@ -2159,6 +2159,7 @@ void getClibFunction(uint clib, ref Symbol* s, ref ClibInfo* cinfo, objfmt_t obj
     const uint ex_unix = (EX_LINUX   | EX_LINUX64   |
                           EX_OSX     | EX_OSX64     |
                           EX_FREEBSD | EX_FREEBSD64 |
+                          EX_NETBSD64 |
                           EX_OPENBSD | EX_OPENBSD64 |
                           EX_DRAGONFLYBSD64 |
                           EX_SOLARIS | EX_SOLARIS64 |
@@ -2909,7 +2910,7 @@ void callclib(ref CGstate cg, ref CodeBuilder cdb, elem* e, uint clib, ref regm_
         }
         if (pushebx)
         {
-            if (config.exe & (EX_LINUX | EX_LINUX64 | EX_FREEBSD | EX_FREEBSD64 | EX_OPENBSD | EX_OPENBSD64 | EX_DRAGONFLYBSD64 | EX_HURD | EX_HURD64))
+            if (config.exe & (EX_LINUX | EX_LINUX64 | EX_FREEBSD | EX_FREEBSD64 | EX_NETBSD64 | EX_OPENBSD | EX_OPENBSD64 | EX_DRAGONFLYBSD64 | EX_HURD | EX_HURD64))
             {
                 cdb.gen1(0x50 + CX);                             // PUSH ECX
                 cdb.gen1(0x50 + BX);                             // PUSH EBX
@@ -3419,7 +3420,7 @@ void cdfunc(ref CGstate cg, ref CodeBuilder cdb, elem* e, ref regm_t pretregs)
 
     /* Assume called function access statics
      */
-    if (config.exe & (EX_LINUX | EX_LINUX64 | EX_OSX | EX_FREEBSD | EX_FREEBSD64 | EX_OPENBSD | EX_OPENBSD64 | EX_HURD | EX_HURD64) &&
+    if (config.exe & (EX_LINUX | EX_LINUX64 | EX_OSX | EX_FREEBSD | EX_FREEBSD64 | EX_NETBSD64 | EX_OPENBSD | EX_OPENBSD64 | EX_HURD | EX_HURD64) &&
         config.flags3 & CFG3pic)
         cg.accessedTLS = true;
 

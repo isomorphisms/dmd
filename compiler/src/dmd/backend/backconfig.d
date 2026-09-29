@@ -233,6 +233,19 @@ void out_config_init(
             cfg.flags |= CFGalwaysframe;
         cfg.objfmt = OBJ_ELF;
     }
+    if (cfg.exe == EX_NETBSD64)
+    {
+        assert(model == 64);
+        cfg.ehmethod = useExceptions ? EHmethod.EH_DWARF : EHmethod.EH_NONE;
+        cfg.fpxmmregs = true;
+        cfg.avx = avx;
+        cfg.flags |= CFGnoebp;
+        if (!exe)
+            cfg.flags3 |= CFG3pic;
+        if (symdebug)
+            cfg.flags |= CFGalwaysframe;
+        cfg.objfmt = OBJ_ELF;
+    }
     if (cfg.exe & (EX_OPENBSD | EX_OPENBSD64))
     {
         if (model == 64)
@@ -358,7 +371,7 @@ static if (0)
 
     if (symdebug)
     {
-        if (cfg.exe & (EX_LINUX | EX_LINUX64 | EX_OPENBSD | EX_OPENBSD64 | EX_FREEBSD | EX_FREEBSD64 | EX_DRAGONFLYBSD64 |
+        if (cfg.exe & (EX_LINUX | EX_LINUX64 | EX_OPENBSD | EX_OPENBSD64 | EX_FREEBSD | EX_FREEBSD64 | EX_NETBSD64 | EX_DRAGONFLYBSD64 |
                           EX_SOLARIS | EX_SOLARIS64 | EX_OSX | EX_OSX64 | EX_HURD | EX_HURD64))
         {
             cfg.addlinenumbers = 1;
@@ -579,7 +592,7 @@ void util_set64(exefmt_t exe)
     _tysize[TYnullptr] = 8;
     _tysize[TYnptr] = 8;
     _tysize[TYnref] = 8;
-    if (exe & (EX_LINUX | EX_LINUX64 | EX_FREEBSD | EX_FREEBSD64 | EX_OPENBSD |
+    if (exe & (EX_LINUX | EX_LINUX64 | EX_FREEBSD | EX_FREEBSD64 | EX_NETBSD64 | EX_OPENBSD |
                       EX_OPENBSD64 | EX_DRAGONFLYBSD64 | EX_SOLARIS | EX_SOLARIS64 | EX_OSX | EX_OSX64 | EX_HURD | EX_HURD64))
     {
         _tysize[TYreal] = 16;
@@ -604,7 +617,7 @@ void util_set64(exefmt_t exe)
     _tyalignsize[TYnullptr] = 8;
     _tyalignsize[TYnptr] = 8;
     _tyalignsize[TYnref] = 8;
-    if (exe & (EX_LINUX | EX_LINUX64 | EX_FREEBSD | EX_FREEBSD64 | EX_OPENBSD | EX_OPENBSD64 | EX_DRAGONFLYBSD64 | EX_SOLARIS | EX_SOLARIS64 | EX_HURD | EX_HURD64))
+    if (exe & (EX_LINUX | EX_LINUX64 | EX_FREEBSD | EX_FREEBSD64 | EX_NETBSD64 | EX_OPENBSD | EX_OPENBSD64 | EX_DRAGONFLYBSD64 | EX_SOLARIS | EX_SOLARIS64 | EX_HURD | EX_HURD64))
     {
         _tyalignsize[TYreal] = 16;
         _tyalignsize[TYireal] = 16;

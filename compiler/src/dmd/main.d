@@ -1076,8 +1076,13 @@ void reconcileCommands(ref Param params, ref Target target, ErrorSink eSink)
         if (!target.isX86_64)
             eSink.error(Loc.initial, "`-m32` is not supported on DragonFlyBSD, it is 64-bit only");
     }
+    else if (target.os == Target.OS.NetBSD)
+    {
+        if (!target.isX86_64)
+            eSink.error(Loc.initial, "NetBSD target currently supports amd64 only");
+    }
 
-    if (target.os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.OpenBSD | Target.OS.Solaris | Target.OS.DragonFlyBSD | Target.OS.Hurd))
+    if (target.os & (Target.OS.linux | Target.OS.FreeBSD | Target.OS.NetBSD | Target.OS.OpenBSD | Target.OS.Solaris | Target.OS.DragonFlyBSD | Target.OS.Hurd))
     {
         if (driverParams.lib && driverParams.dll)
             eSink.error(Loc.initial, "cannot mix `-lib` and `-shared`");

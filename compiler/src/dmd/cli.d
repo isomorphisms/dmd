@@ -21,7 +21,7 @@ nothrow @safe:
  */
 
 /// Bit decoding of the TargetOS
-enum TargetOS : ubyte
+enum TargetOS : ushort
 {
     /* These are mutually exclusive; one and only one is set.
      * Match spelling and casing of corresponding version identifiers
@@ -34,10 +34,11 @@ enum TargetOS : ubyte
     Solaris      = 0x20,
     DragonFlyBSD = 0x40,
     Hurd         = 0x80,
+    NetBSD       = 0x100,
 
     // Combination masks
-    all = linux | Windows | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd,
-    Posix = linux | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd,
+    all = linux | Windows | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd | NetBSD,
+    Posix = linux | OSX | OpenBSD | FreeBSD | Solaris | DragonFlyBSD | Hurd | NetBSD,
 }
 
 // Detect the current TargetOS
@@ -60,6 +61,10 @@ else version(OpenBSD)
 else version(FreeBSD)
 {
     private enum targetOS = TargetOS.FreeBSD;
+}
+else version(NetBSD)
+{
+    private enum targetOS = TargetOS.NetBSD;
 }
 else version(DragonFlyBSD)
 {
@@ -642,7 +647,7 @@ dmd -cov -unittest myprog.d
         Option("m32",
             "generate 32 bit code",
             `$(UNIX Compile a 32 bit executable. This is the default for the 32 bit dmd.)`,
-            cast(TargetOS) (TargetOS.all & ~cast(uint)TargetOS.DragonFlyBSD)  // available on all OS'es except DragonFly, which does not support 32-bit binaries
+            cast(TargetOS) (TargetOS.all & ~cast(uint)(TargetOS.DragonFlyBSD | TargetOS.NetBSD))  // DragonFly and NetBSD are supported as 64-bit targets only
         ),
         Option("m32mscoff",
             "generate 32 bit code and write MS-COFF object files (deprecated use `-m32`)",
@@ -813,6 +818,7 @@ dmd -cov -unittest myprog.d
                     $(LI $(I dragonflybsd): DragonFlyBSD)
                     $(LI $(I freebsd): FreeBSD)
                     $(LI $(I linux): Linux)
+                    $(LI $(I netbsd): NetBSD)
                     $(LI $(I openbsd): OpenBSD)
                     $(LI $(I osx): OSX)
                     $(LI $(I solaris): Solaris)
@@ -907,7 +913,7 @@ dmd -cov -unittest myprog.d
                        $(LI `freestanding` for no operating system)
                        $(LI `darwin` or `osx` for MacOS)
                        $(LI `dragonfly` or `dragonflybsd` for DragonflyBSD)
-                       $(LI `freebsd`, `openbsd`, `linux`, `solaris`, `hurd` or `windows` for their respective operating systems)
+                       $(LI `freebsd`, `netbsd`, `openbsd`, `linux`, `solaris`, `hurd` or `windows` for their respective operating systems)
                    )
                    $(LI $(I cenv) is the C runtime environment and is optional:)
                    $(UL

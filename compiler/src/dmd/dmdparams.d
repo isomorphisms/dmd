@@ -225,6 +225,8 @@ struct Triple
             os =  Target.OS.DragonFlyBSD;
         else if (matches("freebsd"))
             os =  Target.OS.FreeBSD;
+        else if (matches("netbsd"))
+            os =  Target.OS.NetBSD;
         else if (matches("openbsd"))
             os =  Target.OS.OpenBSD;
         else if (matches("linux"))

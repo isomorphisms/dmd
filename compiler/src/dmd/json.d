@@ -836,6 +836,11 @@ public:
                 item("freebsd");
                 item("bsd");
             }
+            else if (target.os == Target.OS.NetBSD)
+            {
+                item("netbsd");
+                item("bsd");
+            }
             else if (target.os == Target.OS.OpenBSD)
             {
                 item("openbsd");
