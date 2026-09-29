@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cehreli-corpus-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux-amd64:
     runs-on: ubuntu-24.04
