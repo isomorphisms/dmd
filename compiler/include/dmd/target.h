@@ -115,7 +115,7 @@ struct TargetObjC
 
 struct Target
 {
-    typedef unsigned char OS;
+    typedef unsigned short OS;
     enum
     {
         /* These are mutually exclusive; one and only one is set.

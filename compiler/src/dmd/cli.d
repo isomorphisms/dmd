@@ -21,7 +21,7 @@ nothrow @safe:
  */
 
 /// Bit decoding of the TargetOS
-enum TargetOS : ubyte
+enum TargetOS : ushort
 {
     /* These are mutually exclusive; one and only one is set.
      * Match spelling and casing of corresponding version identifiers

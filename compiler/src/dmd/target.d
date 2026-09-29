@@ -325,7 +325,7 @@ extern (C++) struct Target
     import dmd.tokens : EXP;
 
     /// Bit decoding of the Target.OS
-    enum OS : ubyte
+    enum OS : ushort
     {
         /* These are mutually exclusive; one and only one is set.
          * Match spelling and casing of corresponding version identifiers
