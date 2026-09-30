@@ -42,7 +42,6 @@ jobs:
         shell: bash
         run: |
           generated/linux/release/64/dmd \
-            -conf= \
             -m64 \
             -os=netbsd \
             -betterC \
@@ -52,7 +51,7 @@ jobs:
           file netbsd_abi.o
 
       - name: Link and execute inside NetBSD ${{ matrix.netbsd_release }}
-        uses: vmactions/netbsd-vm@v1.4.6
+        uses: vmactions/netbsd-vm@00081e82b14bc40114eb97f32b4455306828516b
         with:
           release: ${{ matrix.netbsd_release }}
           arch: x86_64
