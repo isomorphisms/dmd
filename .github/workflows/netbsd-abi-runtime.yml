@@ -1,0 +1,67 @@
+name: NetBSD amd64 ABI runtime
+
+on:
+  push:
+    branches:
+      - netbsd-abi-verify
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: netbsd-abi-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        netbsd_release:
+          - "10.1"
+          - "11.0"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install host D compiler
+        uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: dmd-latest
+
+      - name: Build patched DMD
+        shell: bash
+        run: |
+          make -j2 MODEL=64 HOST_DMD="$(command -v dmd)" ENABLE_RELEASE=1 dmd
+          generated/linux/release/64/dmd --version
+
+      - name: Cross-compile NetBSD BetterC object
+        shell: bash
+        run: |
+          generated/linux/release/64/dmd \
+            -conf= \
+            -m64 \
+            -os=netbsd \
+            -betterC \
+            -c \
+            compiler/test/compilable/netbsd_abi.d \
+            -of=netbsd_abi.o
+          file netbsd_abi.o
+
+      - name: Link and execute inside NetBSD ${{ matrix.netbsd_release }}
+        uses: vmactions/netbsd-vm@v1.4.6
+        with:
+          release: ${{ matrix.netbsd_release }}
+          arch: x86_64
+          usesh: true
+          run: |
+            set -eu
+            uname -a
+            cc -std=c11 -Wall -Wextra -Werror \
+              compiler/test/compilable/extra-files/netbsd_abi_harness.c \
+              netbsd_abi.o \
+              -o netbsd_abi_probe
+            ./netbsd_abi_probe
