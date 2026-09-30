@@ -42,6 +42,8 @@ jobs:
         shell: bash
         run: |
           generated/linux/release/64/dmd \
+            -conf= \
+            -Icompiler/test/compilable/extra-files/minimal \
             -m64 \
             -os=netbsd \
             -betterC \
