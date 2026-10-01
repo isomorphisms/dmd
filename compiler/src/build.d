@@ -1461,6 +1461,7 @@ auto sourceFiles()
             x86/cgcod.d x86/cod1.d x86/cod2.d x86/cod3.d x86/cod4.d x86/cod5.d
             arm/disasmarm.d arm/instr.d arm/cod1.d arm/cod2.d arm/cod3.d arm/cod4.d
             arm32/instr.d
+            arm32/thumb.d
         "),
     };
 
