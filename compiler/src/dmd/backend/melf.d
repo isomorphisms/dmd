@@ -8,8 +8,8 @@
  * Translation to D of Linux's melf.h
  *
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/melf.d, backend/melf.d)
- * References:  $(LINK2 https://github.com/ARM-software/abi-aa/blob/main/aaelf32/aaelf32.rst, aaelf32)
- * References:  $(LINK2 https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst, aaelf64)
+ * References:  $(LINK2 https://github.com/ARM-software/abi-aa/blob/main/aaelf32/aaelf32.rst, aaelf32),
+ *              $(LINK2 https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst, aaelf64)
  */
 
 module dmd.backend.melf;
