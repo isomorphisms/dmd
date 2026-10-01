@@ -8,7 +8,8 @@
  * Translation to D of Linux's melf.h
  *
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/melf.d, backend/melf.d)
- * References:  $(LINK2 https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst, aaelf64)
+ * References:  $(LINK2 https://github.com/ARM-software/abi-aa/blob/main/aaelf32/aaelf32.rst, aaelf32),
+ *              $(LINK2 https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst, aaelf64)
  */
 
 module dmd.backend.melf;
@@ -58,6 +59,8 @@ nothrow:
             enum ELFOSABI_LINUX      = ELFOSABI_GNU;
             enum ELFOSABI_FREEBSD    = 9;
             enum ELFOSABI_OPENBSD    = 12;
+            enum ELFOSABI_ARM_AEABI  = 64;      /* Arm AEABI */
+            enum ELFOSABI_ARM_FDPIC  = 65;      /* Arm FDPIC */
             enum ELFOSABI_ARM        = 97;      /* ARM */
             enum ELFOSABI_STANDALONE = 255;     /* Standalone/embedded */
 
@@ -77,8 +80,17 @@ nothrow:
 // e_machine
         enum EM_386      = 3;       /* Intel 80386 */
         enum EM_486      = 6;       /* Intel 80486 */
+        enum EM_ARM      = 40;      // Arm
         enum EM_X86_64   = 62;      // Advanced Micro Devices X86-64 processor
         enum EM_AARCH64  = 183;     // AMD AArch64
+
+// Arm e_flags (AAELF32)
+        enum EF_ARM_ABIMASK        = 0xFF00_0000;
+        enum EF_ARM_BE8            = 0x0080_0000;
+        enum EF_ARM_GCCMASK        = 0x0040_0FFF;
+        enum EF_ARM_ABI_FLOAT_HARD = 0x0000_0400;
+        enum EF_ARM_ABI_FLOAT_SOFT = 0x0000_0200;
+        enum EF_ARM_EABI_VER5      = 0x0500_0000;
 
 // e_version
             enum EV_NONE     = 0;   // invalid version
@@ -463,6 +475,134 @@ struct Elf64_Rela
 enum GRP_COMDAT   = 1;
 enum GRP_MASKOS   = 0x0ff0_0000;
 enum GRP_MASKPROC = 0xf000_0000;
+
+
+/***************************** 32 bit Arm *********************************************/
+
+        enum R_ARM_NONE               =   0;
+        enum R_ARM_PC24               =   1;
+        enum R_ARM_ABS32              =   2;
+        enum R_ARM_REL32              =   3;
+        enum R_ARM_LDR_PC_G0          =   4;
+        enum R_ARM_ABS16              =   5;
+        enum R_ARM_ABS12              =   6;
+        enum R_ARM_THM_ABS5           =   7;
+        enum R_ARM_ABS8               =   8;
+        enum R_ARM_SBREL32            =   9;
+        enum R_ARM_THM_CALL           =  10;
+        enum R_ARM_THM_PC8            =  11;
+        enum R_ARM_BREL_ADJ           =  12;
+        enum R_ARM_TLS_DESC           =  13;
+        enum R_ARM_THM_SWI8           =  14;
+        enum R_ARM_XPC25              =  15;
+        enum R_ARM_THM_XPC22          =  16;
+        enum R_ARM_TLS_DTPMOD32       =  17;
+        enum R_ARM_TLS_DTPOFF32       =  18;
+        enum R_ARM_TLS_TPOFF32        =  19;
+        enum R_ARM_COPY               =  20;
+        enum R_ARM_GLOB_DAT           =  21;
+        enum R_ARM_JUMP_SLOT          =  22;
+        enum R_ARM_RELATIVE           =  23;
+        enum R_ARM_GOTOFF32           =  24;
+        enum R_ARM_BASE_PREL          =  25;
+        enum R_ARM_GOT_BREL           =  26;
+        enum R_ARM_PLT32              =  27;
+        enum R_ARM_CALL               =  28;
+        enum R_ARM_JUMP24             =  29;
+        enum R_ARM_THM_JUMP24         =  30;
+        enum R_ARM_BASE_ABS           =  31;
+        enum R_ARM_ALU_PCREL_7_0      =  32;
+        enum R_ARM_ALU_PCREL_15_8     =  33;
+        enum R_ARM_ALU_PCREL_23_15    =  34;
+        enum R_ARM_LDR_SBREL_11_0_NC  =  35;
+        enum R_ARM_ALU_SBREL_19_12_NC =  36;
+        enum R_ARM_ALU_SBREL_27_20_CK =  37;
+        enum R_ARM_TARGET1            =  38;
+        enum R_ARM_SBREL31            =  39;
+        enum R_ARM_V4BX               =  40;
+        enum R_ARM_TARGET2            =  41;
+        enum R_ARM_PREL31             =  42;
+        enum R_ARM_MOVW_ABS_NC        =  43;
+        enum R_ARM_MOVT_ABS           =  44;
+        enum R_ARM_MOVW_PREL_NC       =  45;
+        enum R_ARM_MOVT_PREL          =  46;
+        enum R_ARM_THM_MOVW_ABS_NC    =  47;
+        enum R_ARM_THM_MOVT_ABS       =  48;
+        enum R_ARM_THM_MOVW_PREL_NC   =  49;
+        enum R_ARM_THM_MOVT_PREL      =  50;
+        enum R_ARM_THM_JUMP19         =  51;
+        enum R_ARM_THM_JUMP6          =  52;
+        enum R_ARM_THM_ALU_PREL_11_0  =  53;
+        enum R_ARM_THM_PC12           =  54;
+        enum R_ARM_ABS32_NOI          =  55;
+        enum R_ARM_REL32_NOI          =  56;
+        enum R_ARM_ALU_PC_G0_NC       =  57;
+        enum R_ARM_ALU_PC_G0          =  58;
+        enum R_ARM_ALU_PC_G1_NC       =  59;
+        enum R_ARM_ALU_PC_G1          =  60;
+        enum R_ARM_ALU_PC_G2          =  61;
+        enum R_ARM_LDR_PC_G1          =  62;
+        enum R_ARM_LDR_PC_G2          =  63;
+        enum R_ARM_LDRS_PC_G0         =  64;
+        enum R_ARM_LDRS_PC_G1         =  65;
+        enum R_ARM_LDRS_PC_G2         =  66;
+        enum R_ARM_LDC_PC_G0          =  67;
+        enum R_ARM_LDC_PC_G1          =  68;
+        enum R_ARM_LDC_PC_G2          =  69;
+        enum R_ARM_ALU_SB_G0_NC       =  70;
+        enum R_ARM_ALU_SB_G0          =  71;
+        enum R_ARM_ALU_SB_G1_NC       =  72;
+        enum R_ARM_ALU_SB_G1          =  73;
+        enum R_ARM_ALU_SB_G2          =  74;
+        enum R_ARM_LDR_SB_G0          =  75;
+        enum R_ARM_LDR_SB_G1          =  76;
+        enum R_ARM_LDR_SB_G2          =  77;
+        enum R_ARM_LDRS_SB_G0         =  78;
+        enum R_ARM_LDRS_SB_G1         =  79;
+        enum R_ARM_LDRS_SB_G2         =  80;
+        enum R_ARM_LDC_SB_G0          =  81;
+        enum R_ARM_LDC_SB_G1          =  82;
+        enum R_ARM_LDC_SB_G2          =  83;
+        enum R_ARM_MOVW_BREL_NC       =  84;
+        enum R_ARM_MOVT_BREL          =  85;
+        enum R_ARM_MOVW_BREL          =  86;
+        enum R_ARM_THM_MOVW_BREL_NC   =  87;
+        enum R_ARM_THM_MOVT_BREL      =  88;
+        enum R_ARM_THM_MOVW_BREL      =  89;
+        enum R_ARM_TLS_GOTDESC        =  90;
+        enum R_ARM_TLS_CALL           =  91;
+        enum R_ARM_TLS_DESCSEQ        =  92;
+        enum R_ARM_THM_TLS_CALL       =  93;
+        enum R_ARM_PLT32_ABS          =  94;
+        enum R_ARM_GOT_ABS            =  95;
+        enum R_ARM_GOT_PREL           =  96;
+        enum R_ARM_GOT_BREL12         =  97;
+        enum R_ARM_GOTOFF12           =  98;
+        enum R_ARM_GOTRELAX           =  99;
+        enum R_ARM_GNU_VTENTRY        = 100;
+        enum R_ARM_GNU_VTINHERIT      = 101;
+        enum R_ARM_THM_JUMP11         = 102;
+        enum R_ARM_THM_JUMP8          = 103;
+        enum R_ARM_TLS_GD32           = 104;
+        enum R_ARM_TLS_LDM32          = 105;
+        enum R_ARM_TLS_LDO32          = 106;
+        enum R_ARM_TLS_IE32           = 107;
+        enum R_ARM_TLS_LE32           = 108;
+        enum R_ARM_TLS_LDO12          = 109;
+        enum R_ARM_TLS_LE12           = 110;
+        enum R_ARM_TLS_IE12GP         = 111;
+        enum R_ARM_ME_TOO             = 128;
+        enum R_ARM_THM_TLS_DESCSEQ16  = 129;
+        enum R_ARM_THM_TLS_DESCSEQ32  = 130;
+        enum R_ARM_THM_GOT_BREL12     = 131;
+        enum R_ARM_THM_ALU_ABS_G0_NC  = 132;
+        enum R_ARM_THM_ALU_ABS_G1_NC  = 133;
+        enum R_ARM_THM_ALU_ABS_G2_NC  = 134;
+        enum R_ARM_THM_ALU_ABS_G3     = 135;
+        enum R_ARM_THM_BF16           = 136;
+        enum R_ARM_THM_BF12           = 137;
+        enum R_ARM_THM_BF18           = 138;
+        enum R_ARM_IRELATIVE          = 160;
 
 /***************************** 64 bit AArch64 *****************************************/
 
