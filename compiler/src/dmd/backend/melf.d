@@ -59,6 +59,8 @@ nothrow:
             enum ELFOSABI_LINUX      = ELFOSABI_GNU;
             enum ELFOSABI_FREEBSD    = 9;
             enum ELFOSABI_OPENBSD    = 12;
+            enum ELFOSABI_ARM_AEABI  = 64;      /* Arm AEABI */
+            enum ELFOSABI_ARM_FDPIC  = 65;      /* Arm FDPIC */
             enum ELFOSABI_ARM        = 97;      /* ARM */
             enum ELFOSABI_STANDALONE = 255;     /* Standalone/embedded */
 
@@ -81,6 +83,14 @@ nothrow:
         enum EM_ARM      = 40;      // Arm
         enum EM_X86_64   = 62;      // Advanced Micro Devices X86-64 processor
         enum EM_AARCH64  = 183;     // AMD AArch64
+
+// Arm e_flags (AAELF32)
+        enum EF_ARM_ABIMASK        = 0xFF00_0000;
+        enum EF_ARM_BE8            = 0x0080_0000;
+        enum EF_ARM_GCCMASK        = 0x0040_0FFF;
+        enum EF_ARM_ABI_FLOAT_HARD = 0x0000_0400;
+        enum EF_ARM_ABI_FLOAT_SOFT = 0x0000_0200;
+        enum EF_ARM_EABI_VER5      = 0x0500_0000;
 
 // e_version
             enum EV_NONE     = 0;   // invalid version
