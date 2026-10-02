@@ -1849,6 +1849,8 @@ private segidx_t elf_addsegment(IDXSTR namidx, int type, int flags, int align_, 
     elfobj.SecHdrTab[shtidx].sh_addralign = align_;
     IDXSYM symidx = elf_addsym(0, 0, 0, flags & SHF_MERGE ? STT_NOTYPE : STT_SECTION, STB_LOCAL, shtidx);
     segidx_t seg = elf_addsegment2(shtidx, symidx, 0);
+    if (elfobj.ARM32 && (flags & SHF_EXECINSTR))
+        ElfObj_armMappingSymbol(seg, 0, ArmMappingKind.arm);
     //printf("-ElfObj_getsegment() = %d\n", seg);
     return seg;
 }
@@ -1901,12 +1903,8 @@ segidx_t ElfObj_getsegment(const(char)* name, const(char)* suffix, int type, int
         return pidx.end;
     }
     else
-    {
         // New segment, cache the segment index in the hash table
         pidx.end = elf_addsegment(pidx.start, type, flags, align_, entsize);
-        if (elfobj.ARM32 && (flags & SHF_EXECINSTR))
-            ElfObj_armMappingSymbol(pidx.end, 0, ArmMappingKind.arm);
-    }
     return pidx.end;
 }
 
