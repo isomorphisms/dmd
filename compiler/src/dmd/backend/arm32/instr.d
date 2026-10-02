@@ -260,6 +260,33 @@ struct INSTR
         return block_transfer(cond, false, true, true, true, SP, registers);
     }
 
+    /// VPUSH is the A32 alias for VSTMDB sp!, a consecutive D-register list.
+    static uint vpush(COND cond, reg_t firstD, uint count)
+    {
+        check_cond(cond);
+        assert(firstD < 16);
+        assert(count != 0 && cast(uint)firstD + count <= 16);
+
+        // The imm8 field counts 32-bit words, so each D register contributes 2.
+        return (cast(uint)cond << 28) |
+               0x0D2D_0B00 |
+               (cast(uint)firstD << 12) |
+               (count * 2);
+    }
+
+    /// VPOP is the A32 alias for VLDMIA sp!, a consecutive D-register list.
+    static uint vpop(COND cond, reg_t firstD, uint count)
+    {
+        check_cond(cond);
+        assert(firstD < 16);
+        assert(count != 0 && cast(uint)firstD + count <= 16);
+
+        return (cast(uint)cond << 28) |
+               0x0CBD_0B00 |
+               (cast(uint)firstD << 12) |
+               (count * 2);
+    }
+
     /**
      * Encode B/BL using a target displacement measured from the address of the
      * branch instruction itself.  A32 branch immediates are relative to PC,
