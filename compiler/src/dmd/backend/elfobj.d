@@ -193,6 +193,7 @@ struct ElfObj
     OutBuffer section_names;    // Section Names  - String table for section names only
     AApair2* section_names_hashtable; // Hash table for section_names
     bool AArch64;                     // AArch64 relocations
+    bool ARM32;                       // Arm ELF32 object/relocation mode
     int jmpseg;
     OutBuffer symtab_strings;         // String Table  - String table for all other names
     Barray!(Elf32_Shdr) SecHdrTab;    // section header table
@@ -571,6 +572,7 @@ Obj ElfObj_init(OutBuffer* objbuf, const(char)* filename, const(char)* csegname)
 
     cseg = CODE;
     elfobj.AArch64 = config.target_cpu == TARGET_AArch64;
+    elfobj.ARM32 = config.target_cpu == TARGET_ARM32;
     elfobj.fobjbuf = objbuf;
 
     elfobj.note_data.reset();
@@ -1218,6 +1220,10 @@ void ElfObj_term(const(char)[] objfilename)
             assert(0);
     }
 
+    // Android Arm32 relocatable objects use ELFOSABI_SYSV rather than GNU.
+    if (elfobj.ARM32)
+        ELFOSABI = ELFOSABI_SYSV;
+
     elfobj.fobjbuf.position(0, hdrsize);
     if (I64)
     {
@@ -1283,6 +1289,11 @@ void ElfObj_term(const(char)[] objfilename)
         h32.EHident[EI_OSABI] = ELFOSABI;
         h32.e_shoff     = cast(uint)e_shoff;
         h32.e_shnum     = e_shnum;
+        if (elfobj.ARM32)
+        {
+            h32.e_machine = EM_ARM;
+            h32.e_flags = EF_ARM_EABI_VER5;
+        }
         elfobj.fobjbuf.write(&h32, hdrsize);
     }
     elfobj.fobjbuf.position(foffset, 0);
