@@ -284,6 +284,108 @@ struct AAPCS32Allocator
 }
 
 /**
+ * Base-PCS result strategy.
+ */
+enum ResultStorage : ubyte
+{
+    coreRegisters,
+    memory,
+}
+
+/**
+ * Result location plus the preparation/format information needed by lowering.
+ *
+ * validBytes is the number of meaningful result bytes in the returned register
+ * image; a small composite may leave the rest of r0 unspecified.
+ */
+struct ResultPlan
+{
+    ResultStorage storage;
+    Placement placement;
+    ArgumentExtension extension;
+    uint validBytes;
+
+    @property bool isIndirect() const
+    {
+        return storage == ResultStorage.memory;
+    }
+}
+
+/**
+ * Classify a fundamental result under the AAPCS32 base standard.
+ */
+ResultPlan fundamentalResultPlan(FundamentalArgument type)
+{
+    ResultPlan result;
+    result.storage = ResultStorage.coreRegisters;
+    result.placement.firstRegister = 0;
+
+    final switch (type)
+    {
+        case FundamentalArgument.signedByte:
+        case FundamentalArgument.signedHalf:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.signExtend;
+            result.validBytes = 4;
+            return result;
+
+        case FundamentalArgument.unsignedByte:
+        case FundamentalArgument.unsignedHalf:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.zeroExtend;
+            result.validBytes = 4;
+            return result;
+
+        case FundamentalArgument.halfFloat:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.unspecifiedUpperBits;
+            result.validBytes = 2;
+            return result;
+
+        case FundamentalArgument.word:
+        case FundamentalArgument.pointer:
+        case FundamentalArgument.float32:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.none;
+            result.validBytes = 4;
+            return result;
+
+        case FundamentalArgument.doubleWord:
+        case FundamentalArgument.float64:
+            result.placement.registerCount = 2;
+            result.extension = ArgumentExtension.none;
+            result.validBytes = 8;
+            return result;
+    }
+}
+
+/**
+ * Classify a composite result under the AAPCS32 base standard.
+ *
+ * A statically-known composite of 1..4 bytes is returned in r0 as a memory
+ * image loaded from a word-aligned address. Larger or dynamic composites are
+ * returned through caller-provided memory whose address occupies hidden r0.
+ */
+ResultPlan compositeResultPlan(uint size, bool staticallyKnown = true)
+{
+    ResultPlan result;
+    if (!staticallyKnown || size > 4)
+    {
+        result.storage = ResultStorage.memory;
+        result.validBytes = size;
+        return result;
+    }
+
+    assert(size != 0);
+    result.storage = ResultStorage.coreRegisters;
+    result.placement.firstRegister = 0;
+    result.placement.registerCount = 1;
+    result.extension = ArgumentExtension.unspecifiedUpperBits;
+    result.validBytes = size;
+    return result;
+}
+
+/**
  * Base-PCS scalar result placement.
  *
  * A word-sized result (including float in softfp) is returned in r0; a
