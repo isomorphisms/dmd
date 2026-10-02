@@ -28,10 +28,10 @@ unittest
     const modified = coreMask(CoreRegister.r4) | coreMask(CoreRegister.r7);
     auto plan = planAndroidFrame(modified, true, 4, 0);
 
-    assert(plan.savedCoreMask ==
+    assert(plan.savedCoreMask == (
         coreMask(CoreRegister.r4) |
         coreMask(CoreRegister.r7) |
-        coreMask(CoreRegister.lr));
+        coreMask(CoreRegister.lr)));
     assert(plan.savedCoreBytes == 12);
     assert(plan.bodyBytes == 4);
     assert(plan.paddingBytes == 0);
