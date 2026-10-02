@@ -65,7 +65,7 @@ nothrow:
 public
 @trusted
 void out_config_init(
-        bool arm,       // true for generating AArch64 code
+        cpu_target_t targetCpu, // 0 for legacy x86 default, otherwise TARGET_*
         int model,
         bool exe,
         bool trace,
@@ -98,15 +98,16 @@ void out_config_init(
     auto cfg = &config;
 
     cfg._version = _version;
-    if (arm)
-        cfg.target_cpu = TARGET_AArch64;
+    cfg.target_cpu = targetCpu;
     if (!cfg.target_cpu)
-    {   cfg.target_cpu = TARGET_PentiumPro;
+    {
+        cfg.target_cpu = TARGET_PentiumPro;
         cfg.target_scheduler = cfg.target_cpu;
     }
     cfg.fulltypes = CVNONE;
     cfg.fpxmmregs = false;
-    if (!arm)
+    if (cfg.target_cpu != TARGET_AArch64 &&
+        cfg.target_cpu != TARGET_ARM32)
         cfg.inline8087 = 1;
     cfg.memmodel = 0;
     cfg.flags |= CFGuchar;   // make sure TYchar is unsigned
@@ -158,7 +159,10 @@ void out_config_init(
     }
     if (cfg.exe & (EX_LINUX | EX_LINUX64))
     {
-        cfg.fpxmmregs = true;
+        // Preserve the existing x86/AArch64 behavior. ARM32 VFP use is
+        // described by its own backend policy rather than the legacy XMM flag.
+        if (cfg.target_cpu != TARGET_ARM32)
+            cfg.fpxmmregs = true;
         cfg.avx = avx;
         if (model == 64)
         {
