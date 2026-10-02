@@ -571,6 +571,14 @@ extern (C++) struct Target
      */
     void setCPU() @safe
     {
+        // CPU currently models x86 feature levels. Keep the neutral baseline
+        // marker for ARM32 until ARM-specific tuning is introduced.
+        if (isARM32)
+        {
+            cpu = CPU.baseline;
+            return;
+        }
+
         if(!isXmmSupported())
         {
             cpu = CPU.x87;   // cannot support other instruction sets
