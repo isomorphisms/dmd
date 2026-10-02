@@ -284,6 +284,49 @@ struct AAPCS32Allocator
 }
 
 /**
+ * Whole-call argument layout produced by the base PCS.
+ */
+struct CallLayout
+{
+    uint stackedArgumentBytes;
+    uint alignedOutgoingStackBytes;
+    bool hasIndirectResult;
+}
+
+/**
+ * Lay out an ordered argument list with one shared NCRN/NSAA state.
+ *
+ * The caller supplies the placement buffer so this helper remains allocation
+ * free. Android softfp and all variadic AAPCS32 calls use this base-standard
+ * path.
+ *
+ * Params:
+ *   arguments = Stage-B-marshalled arguments in source order
+ *   placements = output buffer, at least arguments.length entries
+ *   hasIndirectResult = reserve hidden r0 before the first ordinary argument
+ */
+CallLayout planCallArguments(
+    scope const(MarshalledArgument)[] arguments,
+    scope Placement[] placements,
+    bool hasIndirectResult = false)
+{
+    assert(placements.length >= arguments.length);
+
+    AAPCS32Allocator allocator;
+    if (hasIndirectResult)
+        allocator.reserveIndirectResult();
+
+    foreach (i, ref argument; arguments)
+        placements[i] = allocator.place(argument);
+
+    CallLayout result;
+    result.stackedArgumentBytes = allocator.stackedArgumentBytes;
+    result.alignedOutgoingStackBytes = allocator.alignedOutgoingStackBytes;
+    result.hasIndirectResult = hasIndirectResult;
+    return result;
+}
+
+/**
  * Base-PCS result strategy.
  */
 enum ResultStorage : ubyte
