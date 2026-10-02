@@ -7,7 +7,8 @@ import dmd.backend.arm32.elfreloc :
     arm32RelocationPreservesTarget,
     arm32RelocationSize;
 import dmd.backend.melf :
-    R_ARM_CALL, R_ARM_GOT_PREL, R_ARM_MOVT_ABS, R_ARM_MOVW_ABS_NC;
+    R_ARM_ABS32, R_ARM_CALL, R_ARM_GOT_PREL, R_ARM_MOVT_ABS,
+    R_ARM_MOVW_ABS_NC;
 
 @("implemented A32 instruction relocations preserve their REL addends")
 unittest
@@ -32,4 +33,12 @@ unittest
 {
     assert(arm32RelocationSize(R_ARM_GOT_PREL) == 4);
     assert(!arm32RelocationPreservesTarget(R_ARM_GOT_PREL));
+}
+
+
+@("R_ARM_ABS32 is a plain four-byte REL data field")
+unittest
+{
+    assert(arm32RelocationSize(R_ARM_ABS32) == 4);
+    assert(!arm32RelocationPreservesTarget(R_ARM_ABS32));
 }
