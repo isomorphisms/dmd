@@ -226,6 +226,7 @@ enum
     TARGET_PentiumPro       = 7,
     TARGET_PentiumII        = 8,
     TARGET_AArch64          = 9,
+    TARGET_ARM32            = 10,
 }
 
 // Symbolic debug info
