@@ -11,7 +11,8 @@
 module dmd.backend.arm32.elfreloc;
 
 import dmd.backend.melf :
-    R_ARM_CALL, R_ARM_GOT_PREL, R_ARM_MOVT_ABS, R_ARM_MOVW_ABS_NC;
+    R_ARM_ABS32, R_ARM_CALL, R_ARM_GOT_PREL, R_ARM_MOVT_ABS,
+    R_ARM_MOVW_ABS_NC;
 
 nothrow:
 @safe:
@@ -23,6 +24,7 @@ size_t arm32RelocationSize(uint type)
 {
     switch (type)
     {
+        case R_ARM_ABS32:
         case R_ARM_CALL:
         case R_ARM_GOT_PREL:
         case R_ARM_MOVW_ABS_NC:
