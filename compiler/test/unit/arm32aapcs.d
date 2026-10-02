@@ -6,7 +6,7 @@ import dmd.backend.arm32.aapcs :
     AAPCS32Allocator, ArgumentExtension, FundamentalArgument,
     MachineType, Placement, ResultStorage, compositeResultPlan,
     fundamentalResultPlan, marshalComposite, marshalFundamental,
-    resultPlacement;
+    planCallArguments, resultPlacement;
 
 @("AAPCS32 softfp scalars use core registers")
 unittest
@@ -239,4 +239,84 @@ unittest
     abi.reserveIndirectResult();
     auto first = abi.place(marshalFundamental(FundamentalArgument.word));
     assert(first.firstRegister == 1);
+}
+
+
+@("whole AAPCS32 call shares register and stack allocation state")
+unittest
+{
+    const args = [
+        marshalFundamental(FundamentalArgument.word),
+        marshalFundamental(FundamentalArgument.float64),
+        marshalFundamental(FundamentalArgument.word),
+    ];
+    Placement[3] p;
+
+    auto layout = planCallArguments(args, p[]);
+
+    assert(p[0].firstRegister == 0 && p[0].registerCount == 1);
+
+    // r1 is skipped for the double-word-aligned second argument.
+    assert(p[1].firstRegister == 2 && p[1].registerCount == 2);
+
+    // All core argument registers are now unavailable.
+    assert(!p[2].usesRegisters);
+    assert(p[2].stackOffset == 0 && p[2].stackBytes == 4);
+
+    assert(layout.stackedArgumentBytes == 4);
+    assert(layout.alignedOutgoingStackBytes == 8);
+    assert(!layout.hasIndirectResult);
+}
+
+@("hidden result pointer shifts the entire call layout")
+unittest
+{
+    const args = [
+        marshalFundamental(FundamentalArgument.word),
+        marshalFundamental(FundamentalArgument.doubleWord),
+        marshalComposite(8, 4),
+    ];
+    Placement[3] p;
+
+    auto layout = planCallArguments(args, p[], true);
+
+    // Hidden result pointer owns r0.
+    assert(p[0].firstRegister == 1 && p[0].registerCount == 1);
+
+    // 64-bit scalar begins at even r2 and consumes r2-r3.
+    assert(p[1].firstRegister == 2 && p[1].registerCount == 2);
+
+    // The two-word composite is now fully stacked.
+    assert(!p[2].usesRegisters);
+    assert(p[2].stackOffset == 0 && p[2].stackBytes == 8);
+
+    assert(layout.stackedArgumentBytes == 8);
+    assert(layout.alignedOutgoingStackBytes == 8);
+    assert(layout.hasIndirectResult);
+}
+
+@("C.5 split is preserved in whole-call planning")
+unittest
+{
+    const args = [
+        marshalFundamental(FundamentalArgument.word),
+        marshalFundamental(FundamentalArgument.word),
+        marshalComposite(12, 4),
+        marshalFundamental(FundamentalArgument.word),
+    ];
+    Placement[4] p;
+
+    auto layout = planCallArguments(args, p[]);
+
+    assert(p[2].firstRegister == 2);
+    assert(p[2].registerCount == 2);
+    assert(p[2].stackOffset == 0);
+    assert(p[2].stackBytes == 4);
+
+    // Once C.5 starts the stack, the next argument stays on the stack.
+    assert(!p[3].usesRegisters);
+    assert(p[3].stackOffset == 4 && p[3].stackBytes == 4);
+
+    assert(layout.stackedArgumentBytes == 8);
+    assert(layout.alignedOutgoingStackBytes == 8);
 }
