@@ -199,7 +199,7 @@ struct AAPCS32Allocator
     }
 
     /// Place an argument after Stage B marshalling.
-    Placement place(const ref MarshalledArgument argument)
+    Placement place(MarshalledArgument argument)
     {
         return placeMachineArgument(argument.size, argument.alignment);
     }
