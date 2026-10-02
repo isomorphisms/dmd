@@ -22,6 +22,8 @@ unittest
     assert(seq.gotLoad == 0xE79F_0000);
     assert(seq.literalAddend == 0);
     assert(seq.literalRelocation == R_ARM_GOT_PREL);
+    assert(seq.dataMappingOffset == 12);
+    assert(seq.armMappingResumeOffset == 16);
 }
 
 @("GOT literal addend compensates for a later literal-pool location")
@@ -37,4 +39,6 @@ unittest
     assert(seq.gotLoad == 0xE79F_3003);
     assert(seq.literalAddend == 8);
     assert(seq.literalRelocation == R_ARM_GOT_PREL);
+    assert(seq.dataMappingOffset == 20);
+    assert(seq.armMappingResumeOffset == 24);
 }
