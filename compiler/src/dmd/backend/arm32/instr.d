@@ -230,6 +230,34 @@ struct INSTR
         return load_store_imm(cond, false, true, false, Rn, Rt, offset);
     }
 
+    private static uint load_store_reg(
+        COND cond, bool load, bool byteAccess,
+        reg_t Rn, reg_t Rt, reg_t Rm)
+    {
+        check_cond(cond);
+        check_reg(Rn);
+        check_reg(Rt);
+        check_reg(Rm);
+
+        // A1 register form, pre-indexed positive unshifted register offset.
+        return (cast(uint)cond << 28) |
+               (1u              << 26) |
+               (1u              << 25) |
+               (1u              << 24) |
+               (1u              << 23) |
+               ((byteAccess ? 1u : 0u) << 22) |
+               ((load ? 1u : 0u) << 20) |
+               (cast(uint)Rn    << 16) |
+               (cast(uint)Rt    << 12) |
+                cast(uint)Rm;
+    }
+
+    /// LDR Rt,[Rn,Rm] using an unshifted positive register offset.
+    static uint ldr_reg(COND cond, reg_t Rt, reg_t Rn, reg_t Rm)
+    {
+        return load_store_reg(cond, true, false, Rn, Rt, Rm);
+    }
+
     private static uint block_transfer(
         COND cond, bool pre, bool up, bool writeback, bool load,
         reg_t Rn, uint registers)
