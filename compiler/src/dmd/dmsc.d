@@ -89,8 +89,13 @@ void backend_init(const ref Param params, const ref DMDparams driverParams, cons
              FileName.equals(FileName.ext(params.exefile), "exe"))
         exe = true;         // if writing out EXE file
 
+    const cpu_target_t backendTarget =
+        target.isAArch64 ? TARGET_AArch64 :
+        target.isARM32   ? TARGET_ARM32 :
+                           TARGET_8086; // legacy sentinel: select default x86 backend
+
     out_config_init(
-        target.isAArch64,
+        backendTarget,
         is64 ? 64 : 32,
         exe,
         false, //params.trace,
