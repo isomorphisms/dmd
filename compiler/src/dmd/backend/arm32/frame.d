@@ -129,12 +129,13 @@ FramePlan planAndroidFrame(
 /**
  * Small fixed sequence used by the initial frame emitter.
  *
- * The maximum core+VFP fixed epilogue is ADD + VPOP + POP + BX.
+ * A 32-bit stack adjustment needs at most four modified-immediate chunks,
+ * leaving room for VFP/core save and return instructions.
  */
 struct FrameSequence
 {
     nothrow:
-    uint[4] words;
+    uint[8] words;
     ubyte length;
 
     void append(uint word)
@@ -145,10 +146,8 @@ struct FrameSequence
 }
 
 /**
- * Whether the current A32 encoder can emit this plan with a single immediate
- * ADD/SUB adjustment.
- *
- * Large frames will later be lowered by materializing or chunking the adjustment.
+ * Whether this frame happens to fit a single ARM modified-immediate SP update.
+ * The emitter does not require this; larger values are decomposed below.
  */
 bool canEmitSingleAdjustment(const ref FramePlan plan)
 {
@@ -162,8 +161,6 @@ bool canEmitSingleAdjustment(const ref FramePlan plan)
 /// Emit core saves, VFP saves and the fixed-size SP subtraction.
 FrameSequence emitPrologue(const ref FramePlan plan)
 {
-    assert(canEmitSingleAdjustment(plan));
-
     FrameSequence result;
 
     if (plan.savedCoreMask)
@@ -173,12 +170,7 @@ FrameSequence emitPrologue(const ref FramePlan plan)
         result.append(INSTR.vpush(
             COND.al, plan.savedVfpFirst, plan.savedVfpCount));
 
-    if (plan.bodyBytes)
-        result.append(INSTR.sub_imm(
-            COND.al,
-            cast(ubyte)CoreRegister.sp,
-            cast(ubyte)CoreRegister.sp,
-            plan.bodyBytes));
+    emitSpAdjustment(result, true, plan.bodyBytes);
 
     return result;
 }
@@ -191,16 +183,9 @@ FrameSequence emitPrologue(const ref FramePlan plan)
  */
 FrameSequence emitEpilogue(const ref FramePlan plan)
 {
-    assert(canEmitSingleAdjustment(plan));
-
     FrameSequence result;
 
-    if (plan.bodyBytes)
-        result.append(INSTR.add_imm(
-            COND.al,
-            cast(ubyte)CoreRegister.sp,
-            cast(ubyte)CoreRegister.sp,
-            plan.bodyBytes));
+    emitSpAdjustment(result, false, plan.bodyBytes);
 
     if (plan.savesVfpRegisters)
         result.append(INSTR.vpop(
@@ -222,6 +207,61 @@ FrameSequence emitEpilogue(const ref FramePlan plan)
 
     result.append(INSTR.bx(COND.al, cast(ubyte)CoreRegister.lr));
     return result;
+}
+
+
+/**
+ * Add or subtract an arbitrary 32-bit fixed frame amount from SP.
+ *
+ * ARM modified immediates can encode every nonzero 8-bit value placed in any
+ * byte lane. Therefore an arbitrary uint decomposes into at most four directly
+ * encodable chunks without consuming a scratch register.
+ */
+private void emitSpAdjustment(
+    ref FrameSequence result,
+    bool subtract,
+    uint amount)
+{
+    if (amount == 0)
+        return;
+
+    uint operand2;
+    if (INSTR.encode_modified_immediate(amount, operand2))
+    {
+        result.append(subtract
+            ? INSTR.sub_imm(
+                COND.al,
+                cast(ubyte)CoreRegister.sp,
+                cast(ubyte)CoreRegister.sp,
+                amount)
+            : INSTR.add_imm(
+                COND.al,
+                cast(ubyte)CoreRegister.sp,
+                cast(ubyte)CoreRegister.sp,
+                amount));
+        return;
+    }
+
+    for (uint shift = 0; shift < 32; shift += 8)
+    {
+        const uint byteValue = (amount >> shift) & 0xFFu;
+        if (byteValue == 0)
+            continue;
+
+        const uint chunk = byteValue << shift;
+        assert(INSTR.encode_modified_immediate(chunk, operand2));
+        result.append(subtract
+            ? INSTR.sub_imm(
+                COND.al,
+                cast(ubyte)CoreRegister.sp,
+                cast(ubyte)CoreRegister.sp,
+                chunk)
+            : INSTR.add_imm(
+                COND.al,
+                cast(ubyte)CoreRegister.sp,
+                cast(ubyte)CoreRegister.sp,
+                chunk));
+    }
 }
 
 private pure uint countBits(uint value)
