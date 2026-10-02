@@ -75,6 +75,6 @@ PicGotAddressSequence materializePicGotAddress(
     // literal reaches the end of the executable section.
     result.dataMappingOffset = cast(uint)literalFromFirstInstruction;
     result.armMappingResumeOffset =
-        cast(uint)literalFromFirstInstruction + uint.sizeof;
+        cast(uint)(literalFromFirstInstruction + uint.sizeof);
     return result;
 }
