@@ -1517,7 +1517,9 @@ void ElfObj_setModuleCtorDtor(Symbol* sfunc, bool isCtor)
                      : ElfObj_getsegment(".fini_array", null, SHT_FINI_ARRAY, SHF_ALLOC|SHF_WRITE, _tysize[TYnptr]);
     else
         seg = ElfObj_getsegment(isCtor ? ".ctors" : ".dtors", null, SHT_PROGBITS, SHF_ALLOC|SHF_WRITE, _tysize[TYnptr]);
-    const reltype_t reltype = I64 ? R_X86_64_64 : R_386_32;
+    const reltype_t reltype =
+        elfobj.ARM32 ? R_ARM_ABS32 :
+        I64 ? R_X86_64_64 : R_386_32;
     const size_t sz = ElfObj_writerel(seg, cast(uint)SegData[seg].SDoffset, reltype, sfunc.Sxtrnnum, 0);
     SegData[seg].SDoffset += sz;
 }
@@ -2830,9 +2832,17 @@ static if (0)
 
     reltype_t relinfo;
     IDXSYM targetsymidx = STI_RODAT;
-    if (I64)
-    {
 
+    if (elfobj.ARM32)
+    {
+        assert(!(flags & CF.offset64));
+        assert(!(MAP_SEG2SEC(targetdatum).sh_flags & SHF_TLS),
+            "ARM32 TLS data relocation not implemented");
+        relinfo = R_ARM_ABS32;
+        targetsymidx = MAP_SEG2SYMIDX(targetdatum);
+    }
+    else if (I64)
+    {
         if (flags & CF.offset64)
         {
             relinfo = R_X86_64_64;
@@ -3224,37 +3234,90 @@ int ElfObj_reftoidentARM32(int seg, targ_size_t offset, Symbol* s, targ_size_t v
     assert(I32);
     assert(elfobj.ARM32);
     assert(!(flags & CF.offset64));
-    assert((flags & CF.selfrel) && tyfunc(s.ty()),
-        "ARM32 ELF reference kind not implemented");
 
     enum int refSize = 4;
+    const bool isCall = (flags & CF.selfrel) != 0;
+
+    if (isCall)
+    {
+        assert(tyfunc(s.ty()), "ARM32 self-relative non-function reference not implemented");
+
+        switch (s.Sclass)
+        {
+            case SC.locstat:
+            case SC.comdat:
+            case SC.static_:
+            case SC.extern_:
+            case SC.comdef:
+            case SC.global:
+            case SC.sinline:
+            case SC.einline:
+            case SC.inline:
+                break;
+
+            default:
+                assert(0, "unsupported ARM32 call symbol class");
+        }
+
+        if (!s.Sxtrnnum)
+        {
+            const size_t numbyteswritten = addtofixlist(s, offset, seg, val, flags);
+            assert(numbyteswritten == refSize);
+            return refSize;
+        }
+
+        const size_t nbytes = ElfObj_writerel(
+            seg, cast(uint)offset, R_ARM_CALL, s.Sxtrnnum, 0);
+        assert(nbytes == refSize);
+        return refSize;
+    }
+
+    // Plain pointer/data fields use R_ARM_ABS32. Instruction fields must use
+    // their dedicated ARM relocations (MOVW/MOVT, GOT, etc.) rather than this
+    // generic path, otherwise the ELF32 REL addend would overwrite the opcode.
+    assert(MAP_SEG2TYP(seg) == DATA,
+        "ARM32 code address materialization must use instruction relocations");
+    assert((s.ty() & mTYLINK) != mTYthread,
+        "ARM32 TLS reference not implemented");
+
+    IDXSYM refseg;
 
     switch (s.Sclass)
     {
         case SC.locstat:
-        case SC.comdat:
         case SC.static_:
+            if (s.Sseg == UNKNOWN)
+            {
+                const size_t numbyteswritten = addtofixlist(s, offset, seg, val, flags);
+                assert(numbyteswritten == refSize);
+                return refSize;
+            }
+            refseg = MAP_SEG2SYMIDX(s.Sseg);
+            val += s.Soffset;
+            break;
+
+        case SC.comdat:
         case SC.extern_:
         case SC.comdef:
         case SC.global:
         case SC.sinline:
         case SC.einline:
         case SC.inline:
+            if (!s.Sxtrnnum)
+            {
+                const size_t numbyteswritten = addtofixlist(s, offset, seg, val, flags);
+                assert(numbyteswritten == refSize);
+                return refSize;
+            }
+            refseg = s.Sxtrnnum;
             break;
 
         default:
-            assert(0, "unsupported ARM32 call symbol class");
-    }
-
-    if (!s.Sxtrnnum)
-    {
-        const size_t numbyteswritten = addtofixlist(s, offset, seg, val, flags);
-        assert(numbyteswritten == refSize);
-        return refSize;
+            assert(0, "unsupported ARM32 absolute-reference symbol class");
     }
 
     const size_t nbytes = ElfObj_writerel(
-        seg, cast(uint)offset, R_ARM_CALL, s.Sxtrnnum, 0);
+        seg, cast(uint)offset, R_ARM_ABS32, refseg, val);
     assert(nbytes == refSize);
     return refSize;
 }
@@ -3564,6 +3627,10 @@ private void obj_rtinit()
 {
     if (config.target_cpu == TARGET_AArch64)
         return obj_rtinit_aarch64();
+    if (config.target_cpu == TARGET_ARM32)
+    {
+        assert(0, "ARM32 DSO registry startup code not implemented");
+    }
 
     // section start/stop symbols are defined by the linker (https://www.airs.com/blog/archives/56)
     // make the symbols hidden so that each DSO gets its own brackets
