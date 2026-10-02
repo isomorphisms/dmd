@@ -33,6 +33,104 @@ enum MachineType : ubyte
 }
 
 /**
+ * Source-level fundamental categories needed by AAPCS32 Stage B.
+ */
+enum FundamentalArgument : ubyte
+{
+    signedByte,
+    unsignedByte,
+    signedHalf,
+    unsignedHalf,
+    halfFloat,
+    word,
+    pointer,
+    float32,
+    doubleWord,
+    float64,
+}
+
+/**
+ * Preparation needed before placing an argument into its final core/stack slots.
+ */
+enum ArgumentExtension : ubyte
+{
+    none,
+    signExtend,
+    zeroExtend,
+    unspecifiedUpperBits,
+}
+
+/**
+ * Result of AAPCS32 Stage B pre-padding/extension.
+ *
+ * size is always a whole number of 32-bit words and alignment is the alignment
+ * of the machine copy used by Stage C.
+ */
+struct MarshalledArgument
+{
+    uint size;
+    uint alignment;
+    ArgumentExtension extension;
+    bool indirect;
+}
+
+/**
+ * Apply Stage B.2/B.5 to a fundamental argument.
+ */
+MarshalledArgument marshalFundamental(FundamentalArgument type)
+{
+    final switch (type)
+    {
+        case FundamentalArgument.signedByte:
+        case FundamentalArgument.signedHalf:
+            return MarshalledArgument(4, 4, ArgumentExtension.signExtend, false);
+
+        case FundamentalArgument.unsignedByte:
+        case FundamentalArgument.unsignedHalf:
+            return MarshalledArgument(4, 4, ArgumentExtension.zeroExtend, false);
+
+        case FundamentalArgument.halfFloat:
+            return MarshalledArgument(
+                4, 4, ArgumentExtension.unspecifiedUpperBits, false);
+
+        case FundamentalArgument.word:
+        case FundamentalArgument.pointer:
+        case FundamentalArgument.float32:
+            return MarshalledArgument(4, 4, ArgumentExtension.none, false);
+
+        case FundamentalArgument.doubleWord:
+        case FundamentalArgument.float64:
+            return MarshalledArgument(8, 8, ArgumentExtension.none, false);
+    }
+}
+
+/**
+ * Apply Stage B.1/B.4/B.5 to a composite argument.
+ *
+ * A dynamically-sized composite is replaced by a pointer to a caller copy.
+ * A known-size composite is word-rounded and its machine copy is aligned to
+ * 4 bytes for natural alignment <= 4, otherwise 8 bytes.
+ */
+MarshalledArgument marshalComposite(
+    uint size,
+    uint naturalAlignment,
+    bool staticallyKnown = true)
+{
+    assert(naturalAlignment != 0 &&
+        (naturalAlignment & (naturalAlignment - 1)) == 0);
+
+    if (!staticallyKnown)
+        return MarshalledArgument(4, 4, ArgumentExtension.none, true);
+
+    assert(size != 0);
+    return MarshalledArgument(
+        alignUp(size, 4),
+        naturalAlignment <= 4 ? 4 : 8,
+        ArgumentExtension.none,
+        false);
+}
+
+/**
  * Placement of one already-marshalled AAPCS32 machine argument.
  *
  * A value may occupy registers, the stack, or both. The latter is needed by
@@ -98,6 +196,12 @@ struct AAPCS32Allocator
             case MachineType.float64:
                 return placeMachineArgument(8, 8);
         }
+    }
+
+    /// Place an argument after Stage B marshalling.
+    Placement place(const ref MarshalledArgument argument)
+    {
+        return placeMachineArgument(argument.size, argument.alignment);
     }
 
     /**
