@@ -43,6 +43,7 @@ import dmd.backend.type;
 import dmd.backend.arm.instr;
 import dmd.backend.arm32.elfreloc :
     arm32RelocationPreservesTarget, arm32RelocationSize;
+import dmd.backend.arm32.attributes : androidArmeabiV7aAttributes;
 
 import dmd.common.outbuffer;
 
@@ -733,6 +734,15 @@ Obj ElfObj_init(OutBuffer* objbuf, const(char)* filename, const(char)* csegname)
 
     elf_addsegment2(SHN_COM, STI_COM, 0);
     assert(SegData[COMD].SDseg == COMD);
+
+    if (elfobj.ARM32)
+    {
+        const attrseg = ElfObj_getsegment(
+            ".ARM.attributes", null, SHT_ARM_ATTRIBUTES, 0, 1);
+        assert(SegData[attrseg].SDbuf.length() == 0);
+        SegData[attrseg].SDbuf.write(androidArmeabiV7aAttributes);
+        Offset(attrseg) = androidArmeabiV7aAttributes.length;
+    }
 
     dwarf_initfile(filename);
     return obj;
