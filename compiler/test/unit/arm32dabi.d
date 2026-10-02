@@ -3,8 +3,11 @@
 module arm32dabi;
 
 import dmd.astenums : TY;
-import dmd.backend.arm32.aapcs : ArgumentExtension, MarshalledArgument;
-import dmd.backend.arm32.dabi : tryMarshalDScalar;
+import dmd.backend.arm32.aapcs :
+    AAPCS32Allocator, ArgumentExtension, FundamentalArgument,
+    MarshalledArgument, marshalFundamental;
+import dmd.backend.arm32.dabi :
+    tryMarshalDBuiltinArgument, tryMarshalDScalar;
 
 @("D narrow integer scalars receive AAPCS32 extension")
 unittest
@@ -75,4 +78,50 @@ unittest
     {
         assert(!tryMarshalDScalar(ty, a));
     }
+}
+
+
+@("D dynamic arrays and delegates are two 4-byte-aligned words")
+unittest
+{
+    MarshalledArgument a;
+
+    assert(tryMarshalDBuiltinArgument(TY.Tarray, a));
+    assert(a.size == 8);
+    assert(a.alignment == 4);
+    assert(!a.indirect);
+
+    assert(tryMarshalDBuiltinArgument(TY.Tdelegate, a));
+    assert(a.size == 8);
+    assert(a.alignment == 4);
+    assert(!a.indirect);
+}
+
+@("D associative arrays are one pointer word")
+unittest
+{
+    MarshalledArgument a;
+    assert(tryMarshalDBuiltinArgument(TY.Taarray, a));
+    assert(a.size == 4 && a.alignment == 4);
+    assert(!a.indirect);
+}
+
+@("D slice pair does not acquire uint64 even-register alignment")
+unittest
+{
+    MarshalledArgument slice;
+    assert(tryMarshalDBuiltinArgument(TY.Tarray, slice));
+
+    AAPCS32Allocator sliceAbi;
+    sliceAbi.place(marshalFundamental(FundamentalArgument.word)); // r0
+    auto slicePlacement = sliceAbi.place(slice);
+    assert(slicePlacement.firstRegister == 1);
+    assert(slicePlacement.registerCount == 2);
+
+    AAPCS32Allocator wideAbi;
+    wideAbi.place(marshalFundamental(FundamentalArgument.word)); // r0
+    auto widePlacement =
+        wideAbi.place(marshalFundamental(FundamentalArgument.doubleWord));
+    assert(widePlacement.firstRegister == 2);
+    assert(widePlacement.registerCount == 2);
 }
