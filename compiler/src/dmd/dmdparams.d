@@ -337,6 +337,10 @@ void setTargetBuildDefaults(ref Target target) @safe
     {
         target.isAArch64 = true;
     }
+    else version (ARM)
+    {
+        target.isARM32 = true;
+    }
     else
     {
         target.isX86_64 = (size_t.sizeof == 8);
@@ -351,7 +355,15 @@ unittest
     version (AArch64)
     {
         assert(t.isAArch64);
+        assert(!t.isARM32);
         assert(!t.isX86_64);
+    }
+    else version (ARM)
+    {
+        assert(!t.isAArch64);
+        assert(t.isARM32);
+        assert(!t.isX86_64);
+        assert(!t.isX86);
     }
     else version (X86_64)
     {
