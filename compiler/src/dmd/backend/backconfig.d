@@ -32,7 +32,7 @@ nothrow:
 /**************************************
  * Initialize configuration for backend.
  * Params:
-    arm           = true for generating AArch64 code
+    targetCpu     = backend target CPU identity
     model         = 32 for 32 bit code,
                     64 for 64 bit code,
     exe           = true for exe file,
@@ -65,7 +65,7 @@ nothrow:
 public
 @trusted
 void out_config_init(
-        bool arm,       // true for generating AArch64 code
+        cpu_target_t targetCpu, // 0 for legacy x86 default, otherwise TARGET_*
         int model,
         bool exe,
         bool trace,
@@ -98,15 +98,16 @@ void out_config_init(
     auto cfg = &config;
 
     cfg._version = _version;
-    if (arm)
-        cfg.target_cpu = TARGET_AArch64;
+    cfg.target_cpu = targetCpu;
     if (!cfg.target_cpu)
-    {   cfg.target_cpu = TARGET_PentiumPro;
+    {
+        cfg.target_cpu = TARGET_PentiumPro;
         cfg.target_scheduler = cfg.target_cpu;
     }
     cfg.fulltypes = CVNONE;
     cfg.fpxmmregs = false;
-    if (!arm)
+    if (cfg.target_cpu != TARGET_AArch64 &&
+        cfg.target_cpu != TARGET_ARM32)
         cfg.inline8087 = 1;
     cfg.memmodel = 0;
     cfg.flags |= CFGuchar;   // make sure TYchar is unsigned
@@ -158,7 +159,10 @@ void out_config_init(
     }
     if (cfg.exe & (EX_LINUX | EX_LINUX64))
     {
-        cfg.fpxmmregs = true;
+        // Preserve the existing x86/AArch64 behavior. ARM32 VFP use is
+        // described by its own backend policy rather than the legacy XMM flag.
+        if (cfg.target_cpu != TARGET_ARM32)
+            cfg.fpxmmregs = true;
         cfg.avx = avx;
         if (model == 64)
         {
@@ -352,7 +356,7 @@ static if (0)
     cfg.vasm = vasm;
     cfg.verbose = verbose;
 
-    go.AArch64 = arm;
+    go.AArch64 = targetCpu == TARGET_AArch64;
     if (optimize)
         go_flag(go, cast(char*)"-o".ptr);
 
@@ -391,7 +395,7 @@ static if (0)
     cfg.useExceptions = useExceptions;
 
     cod3_setdefault();
-    if (arm)
+    if (targetCpu == TARGET_AArch64)
     {
         cfg.fpxmmregs = false; // add SIMD support later
         util_setAArch64(cfg.exe);
