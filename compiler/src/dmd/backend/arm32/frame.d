@@ -27,6 +27,7 @@ nothrow:
  */
 struct FramePlan
 {
+    nothrow:
     uint savedCoreMask;
     uint localBytes;
     uint outgoingBytes;
@@ -98,6 +99,7 @@ FramePlan planAndroidFrame(
  */
 struct FrameSequence
 {
+    nothrow:
     uint[3] words;
     ubyte length;
 
