@@ -1,5 +1,5 @@
 /**
- * Android/AAPCS32 core-register frame planning and A32 prologue/epilogue emission.
+ * Android/AAPCS32 frame planning and A32 prologue/epilogue emission.
  *
  * Compiler implementation of the
  * $(LINK2 https://www.dlang.org, D programming language).
@@ -13,22 +13,27 @@ module dmd.backend.arm32.frame;
 
 import dmd.backend.arm32.instr : COND, INSTR;
 import dmd.backend.arm32.registers :
-    CoreRegister, androidCalleeSavedCoreMask, linkRegisterMask, programCounterMask;
+    CoreRegister, androidCalleeSavedCoreMask, linkRegisterMask, programCounterMask,
+    vfpCalleeSavedDMask;
 
 nothrow:
 @safe:
 
 /**
- * Core-register frame description for an Android armeabi-v7a function.
+ * Fixed-size Android armeabi-v7a frame description.
  *
- * This slice intentionally handles only the core-register save area and a
- * fixed-size local/outgoing area. VFP d8-d15 saves and dynamic alloca lowering
- * are separate layers.
+ * Core callee saves and VFP d8-d15 saves are represented independently.
+ * If several non-adjacent D registers need preservation, the planner saves the
+ * smallest contiguous range covering them so one VPUSH/VPOP pair is sufficient.
  */
 struct FramePlan
 {
     nothrow:
+    enum ubyte noVfpRegister = ubyte.max;
+
     uint savedCoreMask;
+    ubyte savedVfpFirst = noVfpRegister;
+    ubyte savedVfpCount;
     uint localBytes;
     uint outgoingBytes;
     uint paddingBytes;
@@ -40,23 +45,43 @@ struct FramePlan
         return countBits(savedCoreMask) * 4;
     }
 
+    @property uint savedVfpBytes() const
+    {
+        return cast(uint)savedVfpCount * 8;
+    }
+
     @property uint totalStackBytes() const
     {
-        return savedCoreBytes + bodyBytes;
+        return savedCoreBytes + savedVfpBytes + bodyBytes;
     }
 
     @property bool savesLinkRegister() const
     {
         return (savedCoreMask & linkRegisterMask) != 0;
     }
+
+    @property bool savesVfpRegisters() const
+    {
+        return savedVfpCount != 0;
+    }
+}
+
+/// Plan a frame when the function does not modify any VFP callee-saved registers.
+FramePlan planAndroidFrame(
+    uint modifiedCoreMask,
+    bool makesCalls,
+    uint localBytes,
+    uint outgoingBytes)
+{
+    return planAndroidFrame(
+        modifiedCoreMask, 0, makesCalls, localBytes, outgoingBytes);
 }
 
 /**
  * Plan a fixed-size Android ARM32 frame.
  *
- * modifiedCoreMask describes core variable registers modified by the body.
- * Volatile registers are ignored; Android callee-saved registers are preserved.
- * A non-leaf function also preserves its incoming LR because BL overwrites LR.
+ * modifiedCoreMask describes core registers modified by the body.
+ * modifiedVfpDMask uses bit n for Dn. Only d8-d15 require preservation.
  *
  * localBytes and outgoingBytes are machine stack areas and must already be
  * rounded to whole words. Padding is added so SP remains 8-byte aligned at
@@ -64,6 +89,7 @@ struct FramePlan
  */
 FramePlan planAndroidFrame(
     uint modifiedCoreMask,
+    uint modifiedVfpDMask,
     bool makesCalls,
     uint localBytes,
     uint outgoingBytes)
@@ -82,8 +108,17 @@ FramePlan planAndroidFrame(
     if (makesCalls)
         plan.savedCoreMask |= linkRegisterMask;
 
+    const uint savedVfpMask = modifiedVfpDMask & vfpCalleeSavedDMask;
+    if (savedVfpMask)
+    {
+        const ubyte first = firstSetBit(savedVfpMask);
+        const ubyte last = lastSetBit(savedVfpMask);
+        plan.savedVfpFirst = first;
+        plan.savedVfpCount = cast(ubyte)(last - first + 1);
+    }
+
     const uint rawBodyBytes = localBytes + outgoingBytes;
-    const uint saveBytes = countBits(plan.savedCoreMask) * 4;
+    const uint saveBytes = plan.savedCoreBytes + plan.savedVfpBytes;
     plan.paddingBytes = (8 - ((saveBytes + rawBodyBytes) & 7)) & 7;
     plan.bodyBytes = rawBodyBytes + plan.paddingBytes;
 
@@ -92,15 +127,14 @@ FramePlan planAndroidFrame(
 }
 
 /**
- * Small fixed sequence used by this initial frame emitter.
+ * Small fixed sequence used by the initial frame emitter.
  *
- * A core-only fixed frame needs at most PUSH + SUB in the prologue and
- * ADD + POP/BX in the epilogue.
+ * The maximum core+VFP fixed epilogue is ADD + VPOP + POP + BX.
  */
 struct FrameSequence
 {
     nothrow:
-    uint[3] words;
+    uint[4] words;
     ubyte length;
 
     void append(uint word)
@@ -114,7 +148,7 @@ struct FrameSequence
  * Whether the current A32 encoder can emit this plan with a single immediate
  * ADD/SUB adjustment.
  *
- * Large frames will later be lowered by materializing/chunking the adjustment.
+ * Large frames will later be lowered by materializing or chunking the adjustment.
  */
 bool canEmitSingleAdjustment(const ref FramePlan plan)
 {
@@ -125,7 +159,7 @@ bool canEmitSingleAdjustment(const ref FramePlan plan)
     return INSTR.encode_modified_immediate(plan.bodyBytes, operand2);
 }
 
-/// Emit PUSH and the fixed-size SP subtraction for a core-only A32 frame.
+/// Emit core saves, VFP saves and the fixed-size SP subtraction.
 FrameSequence emitPrologue(const ref FramePlan plan)
 {
     assert(canEmitSingleAdjustment(plan));
@@ -134,6 +168,10 @@ FrameSequence emitPrologue(const ref FramePlan plan)
 
     if (plan.savedCoreMask)
         result.append(INSTR.push(COND.al, plan.savedCoreMask));
+
+    if (plan.savesVfpRegisters)
+        result.append(INSTR.vpush(
+            COND.al, plan.savedVfpFirst, plan.savedVfpCount));
 
     if (plan.bodyBytes)
         result.append(INSTR.sub_imm(
@@ -148,8 +186,8 @@ FrameSequence emitPrologue(const ref FramePlan plan)
 /**
  * Emit the matching A32 epilogue.
  *
- * When LR was saved, restore it directly into PC so the POP returns. Otherwise
- * restore any variable registers and return with BX LR.
+ * VFP state is restored before the core PUSH area. When LR was saved, restore
+ * it directly into PC so the final core POP returns.
  */
 FrameSequence emitEpilogue(const ref FramePlan plan)
 {
@@ -163,6 +201,10 @@ FrameSequence emitEpilogue(const ref FramePlan plan)
             cast(ubyte)CoreRegister.sp,
             cast(ubyte)CoreRegister.sp,
             plan.bodyBytes));
+
+    if (plan.savesVfpRegisters)
+        result.append(INSTR.vpop(
+            COND.al, plan.savedVfpFirst, plan.savedVfpCount));
 
     if (plan.savedCoreMask)
     {
@@ -191,4 +233,26 @@ private pure uint countBits(uint value)
         ++count;
     }
     return count;
+}
+
+private pure ubyte firstSetBit(uint value)
+{
+    assert(value != 0);
+    for (ubyte bit = 0; bit < 32; ++bit)
+    {
+        if (value & (1u << bit))
+            return bit;
+    }
+    assert(0);
+}
+
+private pure ubyte lastSetBit(uint value)
+{
+    assert(value != 0);
+    for (int bit = 31; bit >= 0; --bit)
+    {
+        if (value & (1u << bit))
+            return cast(ubyte)bit;
+    }
+    assert(0);
 }
