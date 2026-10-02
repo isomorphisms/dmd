@@ -101,12 +101,25 @@ unittest
     assert(plan.totalStackBytes == 16);
 }
 
-@("large non-encodable adjustment is planned but rejected by narrow emitter")
+@("large stack adjustment decomposes into encodable byte-lane chunks")
 unittest
 {
     auto plan = planAndroidFrame(0, false, 0x1234, 0);
+    assert(plan.paddingBytes == 4);
+    assert(plan.bodyBytes == 0x1238);
     assert((plan.totalStackBytes & 7) == 0);
     assert(!canEmitSingleAdjustment(plan));
+
+    auto prologue = emitPrologue(plan);
+    assert(prologue.length == 2);
+    assert(prologue.words[0] == 0xE24D_D038); // sub sp,sp,#0x38
+    assert(prologue.words[1] == 0xE24D_DC12); // sub sp,sp,#0x1200
+
+    auto epilogue = emitEpilogue(plan);
+    assert(epilogue.length == 3);
+    assert(epilogue.words[0] == 0xE28D_D038); // add sp,sp,#0x38
+    assert(epilogue.words[1] == 0xE28D_DC12); // add sp,sp,#0x1200
+    assert(epilogue.words[2] == 0xE12F_FF1E); // bx lr
 }
 
 
