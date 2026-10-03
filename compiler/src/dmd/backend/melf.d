@@ -144,6 +144,7 @@ struct Elf32_Ehdr
         enum SHT_FINI_ARRAY   = 15;         /* Array of destructors */
         enum SHT_GROUP        = 17;         /* Section group (COMDAT) */
         enum SHT_SYMTAB_SHNDX = 18;         /* Extended section indices */
+        enum SHT_ARM_ATTRIBUTES = 0x7000_0003; /* Arm build attributes */
 
 // sh_flags
         enum SHF_WRITE       = (1 << 0);    /* Writable during execution */
