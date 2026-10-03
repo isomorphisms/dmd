@@ -32,7 +32,7 @@ nothrow:
 /**************************************
  * Initialize configuration for backend.
  * Params:
-    arm           = true for generating AArch64 code
+    targetCpu     = backend target CPU identity
     model         = 32 for 32 bit code,
                     64 for 64 bit code,
     exe           = true for exe file,
@@ -356,7 +356,7 @@ static if (0)
     cfg.vasm = vasm;
     cfg.verbose = verbose;
 
-    go.AArch64 = arm;
+    go.AArch64 = targetCpu == TARGET_AArch64;
     if (optimize)
         go_flag(go, cast(char*)"-o".ptr);
 
@@ -395,7 +395,7 @@ static if (0)
     cfg.useExceptions = useExceptions;
 
     cod3_setdefault();
-    if (arm)
+    if (targetCpu == TARGET_AArch64)
     {
         cfg.fpxmmregs = false; // add SIMD support later
         util_setAArch64(cfg.exe);
