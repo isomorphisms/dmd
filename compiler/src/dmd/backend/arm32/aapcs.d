@@ -170,7 +170,7 @@ struct AAPCS32Allocator
     private uint nextStackOffset;   // NSAA relative to incoming/public-interface SP
 
     /// AAPCS32 Stage A.4: r0 contains the address of an indirect result.
-    void reserveIndirectResult()
+    nothrow void reserveIndirectResult()
     {
         assert(nextCoreRegister == 0);
         assert(nextStackOffset == 0);
@@ -183,7 +183,7 @@ struct AAPCS32Allocator
      * In Android armeabi-v7a softfp, float32 and float64 deliberately take this
      * same path rather than VFP argument registers.
      */
-    Placement place(MachineType type)
+    nothrow Placement place(MachineType type)
     {
         final switch (type)
         {
@@ -199,7 +199,7 @@ struct AAPCS32Allocator
     }
 
     /// Place an argument after Stage B marshalling.
-    Placement place(MarshalledArgument argument)
+    nothrow Placement place(MarshalledArgument argument)
     {
         return placeMachineArgument(argument.size, argument.alignment);
     }
@@ -212,7 +212,7 @@ struct AAPCS32Allocator
      *   size = marshalled argument size in bytes, rounded to a multiple of 4
      *   alignment = 4 or 8 byte ABI alignment
      */
-    Placement placeMachineArgument(uint size, uint alignment)
+    nothrow Placement placeMachineArgument(uint size, uint alignment)
     {
         assert(size != 0 && (size & 3) == 0);
         assert(alignment == 4 || alignment == 8);
@@ -268,7 +268,7 @@ struct AAPCS32Allocator
     }
 
     /// Raw bytes occupied by stacked arguments, including ABI padding.
-    @property uint stackedArgumentBytes() const
+    @property nothrow uint stackedArgumentBytes() const
     {
         return nextStackOffset;
     }
@@ -277,10 +277,155 @@ struct AAPCS32Allocator
      * Size the caller should reserve for outgoing stacked arguments while
      * retaining AAPCS32's 8-byte SP alignment at a public interface.
      */
-    @property uint alignedOutgoingStackBytes() const
+    @property nothrow uint alignedOutgoingStackBytes() const
     {
         return alignUp(nextStackOffset, 8);
     }
+}
+
+/**
+ * Whole-call argument layout produced by the base PCS.
+ */
+struct CallLayout
+{
+    uint stackedArgumentBytes;
+    uint alignedOutgoingStackBytes;
+    bool hasIndirectResult;
+}
+
+/**
+ * Lay out an ordered argument list with one shared NCRN/NSAA state.
+ *
+ * The caller supplies the placement buffer so this helper remains allocation
+ * free. Android softfp and all variadic AAPCS32 calls use this base-standard
+ * path.
+ *
+ * Params:
+ *   arguments = Stage-B-marshalled arguments in source order
+ *   placements = output buffer, at least arguments.length entries
+ *   hasIndirectResult = reserve hidden r0 before the first ordinary argument
+ */
+CallLayout planCallArguments(
+    scope const(MarshalledArgument)[] arguments,
+    scope Placement[] placements,
+    bool hasIndirectResult = false)
+{
+    assert(placements.length >= arguments.length);
+
+    AAPCS32Allocator allocator;
+    if (hasIndirectResult)
+        allocator.reserveIndirectResult();
+
+    foreach (i, ref argument; arguments)
+        placements[i] = allocator.place(argument);
+
+    CallLayout result;
+    result.stackedArgumentBytes = allocator.stackedArgumentBytes;
+    result.alignedOutgoingStackBytes = allocator.alignedOutgoingStackBytes;
+    result.hasIndirectResult = hasIndirectResult;
+    return result;
+}
+
+/**
+ * Base-PCS result strategy.
+ */
+enum ResultStorage : ubyte
+{
+    coreRegisters,
+    memory,
+}
+
+/**
+ * Result location plus the preparation/format information needed by lowering.
+ *
+ * validBytes is the number of meaningful result bytes in the returned register
+ * image; a small composite may leave the rest of r0 unspecified.
+ */
+struct ResultPlan
+{
+    ResultStorage storage;
+    Placement placement;
+    ArgumentExtension extension;
+    uint validBytes;
+
+    @property bool isIndirect() const
+    {
+        return storage == ResultStorage.memory;
+    }
+}
+
+/**
+ * Classify a fundamental result under the AAPCS32 base standard.
+ */
+ResultPlan fundamentalResultPlan(FundamentalArgument type)
+{
+    ResultPlan result;
+    result.storage = ResultStorage.coreRegisters;
+    result.placement.firstRegister = 0;
+
+    final switch (type)
+    {
+        case FundamentalArgument.signedByte:
+        case FundamentalArgument.signedHalf:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.signExtend;
+            result.validBytes = 4;
+            return result;
+
+        case FundamentalArgument.unsignedByte:
+        case FundamentalArgument.unsignedHalf:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.zeroExtend;
+            result.validBytes = 4;
+            return result;
+
+        case FundamentalArgument.halfFloat:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.unspecifiedUpperBits;
+            result.validBytes = 2;
+            return result;
+
+        case FundamentalArgument.word:
+        case FundamentalArgument.pointer:
+        case FundamentalArgument.float32:
+            result.placement.registerCount = 1;
+            result.extension = ArgumentExtension.none;
+            result.validBytes = 4;
+            return result;
+
+        case FundamentalArgument.doubleWord:
+        case FundamentalArgument.float64:
+            result.placement.registerCount = 2;
+            result.extension = ArgumentExtension.none;
+            result.validBytes = 8;
+            return result;
+    }
+}
+
+/**
+ * Classify a composite result under the AAPCS32 base standard.
+ *
+ * A statically-known composite of 1..4 bytes is returned in r0 as a memory
+ * image loaded from a word-aligned address. Larger or dynamic composites are
+ * returned through caller-provided memory whose address occupies hidden r0.
+ */
+ResultPlan compositeResultPlan(uint size, bool staticallyKnown = true)
+{
+    ResultPlan result;
+    if (!staticallyKnown || size > 4)
+    {
+        result.storage = ResultStorage.memory;
+        result.validBytes = size;
+        return result;
+    }
+
+    assert(size != 0);
+    result.storage = ResultStorage.coreRegisters;
+    result.placement.firstRegister = 0;
+    result.placement.registerCount = 1;
+    result.extension = ArgumentExtension.unspecifiedUpperBits;
+    result.validBytes = size;
+    return result;
 }
 
 /**
