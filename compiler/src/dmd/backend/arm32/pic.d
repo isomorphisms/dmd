@@ -35,6 +35,10 @@ struct PicGotAddressSequence
     uint gotLoad;
     uint literalAddend;
     uint literalRelocation;
+
+    // AAELF32 mapping-symbol transitions relative to the first instruction.
+    uint dataMappingOffset;
+    uint armMappingResumeOffset;
 }
 
 /**
@@ -65,5 +69,12 @@ PicGotAddressSequence materializePicGotAddress(
     result.literalAddend =
         cast(uint)(literalFromFirstInstruction - 12);
     result.literalRelocation = R_ARM_GOT_PREL;
+
+    // Emit $d where the literal begins. If code resumes immediately after this
+    // one-word literal, emit $a at armMappingResumeOffset; omit it when the
+    // literal reaches the end of the executable section.
+    result.dataMappingOffset = cast(uint)literalFromFirstInstruction;
+    result.armMappingResumeOffset =
+        cast(uint)(literalFromFirstInstruction + uint.sizeof);
     return result;
 }

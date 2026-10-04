@@ -50,3 +50,16 @@ unittest
     t.c.runtime = TargetC.Runtime.Bionic;
     assert(t.isAndroid);
 }
+
+
+@("ARM32 target-info reports softfp procedure-call ABI")
+unittest
+{
+    Target t;
+    t.isARM32 = true;
+    assert(t.floatAbiName == "softfp");
+
+    Target x86;
+    x86.isX86 = true;
+    assert(x86.floatAbiName == "hard");
+}
