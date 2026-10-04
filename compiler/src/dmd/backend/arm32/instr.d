@@ -230,6 +230,34 @@ struct INSTR
         return load_store_imm(cond, false, true, false, Rn, Rt, offset);
     }
 
+    private static uint load_store_reg(
+        COND cond, bool load, bool byteAccess,
+        reg_t Rn, reg_t Rt, reg_t Rm)
+    {
+        check_cond(cond);
+        check_reg(Rn);
+        check_reg(Rt);
+        check_reg(Rm);
+
+        // A1 register form, pre-indexed positive unshifted register offset.
+        return (cast(uint)cond << 28) |
+               (1u              << 26) |
+               (1u              << 25) |
+               (1u              << 24) |
+               (1u              << 23) |
+               ((byteAccess ? 1u : 0u) << 22) |
+               ((load ? 1u : 0u) << 20) |
+               (cast(uint)Rn    << 16) |
+               (cast(uint)Rt    << 12) |
+                cast(uint)Rm;
+    }
+
+    /// LDR Rt,[Rn,Rm] using an unshifted positive register offset.
+    static uint ldr_reg(COND cond, reg_t Rt, reg_t Rn, reg_t Rm)
+    {
+        return load_store_reg(cond, true, false, Rn, Rt, Rm);
+    }
+
     private static uint block_transfer(
         COND cond, bool pre, bool up, bool writeback, bool load,
         reg_t Rn, uint registers)
@@ -258,6 +286,33 @@ struct INSTR
     static uint pop(COND cond, uint registers)
     {
         return block_transfer(cond, false, true, true, true, SP, registers);
+    }
+
+    /// VPUSH is the A32 alias for VSTMDB sp!, a consecutive D-register list.
+    static uint vpush(COND cond, reg_t firstD, uint count)
+    {
+        check_cond(cond);
+        assert(firstD < 16);
+        assert(count != 0 && cast(uint)firstD + count <= 16);
+
+        // The imm8 field counts 32-bit words, so each D register contributes 2.
+        return (cast(uint)cond << 28) |
+               0x0D2D_0B00 |
+               (cast(uint)firstD << 12) |
+               (count * 2);
+    }
+
+    /// VPOP is the A32 alias for VLDMIA sp!, a consecutive D-register list.
+    static uint vpop(COND cond, reg_t firstD, uint count)
+    {
+        check_cond(cond);
+        assert(firstD < 16);
+        assert(count != 0 && cast(uint)firstD + count <= 16);
+
+        return (cast(uint)cond << 28) |
+               0x0CBD_0B00 |
+               (cast(uint)firstD << 12) |
+               (count * 2);
     }
 
     /**

@@ -55,3 +55,22 @@ unittest
     assert(INSTR.movw(COND.al, 0, 0x1234) == 0xE301_0234);
     assert(INSTR.movt(COND.al, 0, 0x5678) == 0xE345_0678);
 }
+
+
+@("A32 VFP stack encodings")
+unittest
+{
+    assert(INSTR.vpush(COND.al, 8, 8) == 0xED2D_8B10); // vpush {d8-d15}
+    assert(INSTR.vpop(COND.al, 8, 8) == 0xECBD_8B10);  // vpop {d8-d15}
+    assert(INSTR.vpush(COND.al, 4, 4) == 0xED2D_4B08); // vpush {d4-d7}
+    assert(INSTR.vpop(COND.al, 15, 1) == 0xECBD_FB02); // vpop {d15}
+}
+
+
+@("A32 register-offset load encoding")
+unittest
+{
+    // Clang 17, armv7a-linux-androideabi21 -marm:
+    //     ldr r0,[pc,r0]
+    assert(INSTR.ldr_reg(COND.al, 0, INSTR.PC, 0) == 0xE79F_0000);
+}
