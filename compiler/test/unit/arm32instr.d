@@ -65,3 +65,12 @@ unittest
     assert(INSTR.vpush(COND.al, 4, 4) == 0xED2D_4B08); // vpush {d4-d7}
     assert(INSTR.vpop(COND.al, 15, 1) == 0xECBD_FB02); // vpop {d15}
 }
+
+
+@("A32 register-offset load encoding")
+unittest
+{
+    // Clang 17, armv7a-linux-androideabi21 -marm:
+    //     ldr r0,[pc,r0]
+    assert(INSTR.ldr_reg(COND.al, 0, INSTR.PC, 0) == 0xE79F_0000);
+}
