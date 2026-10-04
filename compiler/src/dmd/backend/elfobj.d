@@ -44,6 +44,7 @@ import dmd.backend.arm.instr;
 import dmd.backend.arm32.elfreloc :
     arm32RelocationPreservesTarget, arm32RelocationSize;
 import dmd.backend.arm32.attributes : androidArmeabiV7aAttributes;
+import dmd.backend.arm32.mapping : ArmMappingKind, armMappingSymbolName;
 
 import dmd.common.outbuffer;
 
@@ -377,6 +378,24 @@ private IDXSYM elf_addsym(IDXSTR nam, targ_size_t val, uint sz,
         elfobj.local_cnt++;
     //dbg_printf("\treturning symbol table index %d\n",elfobj.symbol_idx);
     return elfobj.symbol_idx++;
+}
+
+/**
+ * Add an AAELF32 mapping symbol at a byte offset in an executable section.
+ *
+ * Mapping symbols are local STT_NOTYPE symbols with zero size. They delimit
+ * half-open ranges interpreted as A32 instructions, Thumb instructions, or
+ * data embedded in an executable section.
+ */
+void ElfObj_armMappingSymbol(segidx_t seg, targ_size_t offset, ArmMappingKind kind)
+{
+    assert(elfobj.ARM32);
+    assert(seg >= CODE && seg < SegData.length);
+    assert(MAP_SEG2SEC(seg).sh_flags & SHF_EXECINSTR);
+
+    const name = armMappingSymbolName(kind);
+    const namidx = ElfObj_addstr(&elfobj.symtab_strings, name.ptr);
+    elf_addsym(namidx, offset, 0, STT_NOTYPE, STB_LOCAL, MAP_SEG2SECIDX(seg));
 }
 
 /*******************************
@@ -719,6 +738,8 @@ Obj ElfObj_init(OutBuffer* objbuf, const(char)* filename, const(char)* csegname)
 
     elf_addsegment2(SHN_TEXT, STI_TEXT, SHN_RELTEXT);
     assert(SegData[CODE].SDseg == CODE);
+    if (elfobj.ARM32)
+        ElfObj_armMappingSymbol(CODE, 0, ArmMappingKind.arm);
 
     elf_addsegment2(SHN_DATA, STI_DATA, SHN_RELDATA);
     assert(SegData[DATA].SDseg == DATA);
@@ -1828,6 +1849,8 @@ private segidx_t elf_addsegment(IDXSTR namidx, int type, int flags, int align_, 
     elfobj.SecHdrTab[shtidx].sh_addralign = align_;
     IDXSYM symidx = elf_addsym(0, 0, 0, flags & SHF_MERGE ? STT_NOTYPE : STT_SECTION, STB_LOCAL, shtidx);
     segidx_t seg = elf_addsegment2(shtidx, symidx, 0);
+    if (elfobj.ARM32 && (flags & SHF_EXECINSTR))
+        ElfObj_armMappingSymbol(seg, 0, ArmMappingKind.arm);
     //printf("-ElfObj_getsegment() = %d\n", seg);
     return seg;
 }
@@ -2190,6 +2213,8 @@ void ElfObj_func_start(Symbol* sfunc)
     cseg = sfunc.Sseg;
     elfobj.jmpseg = 0;                         // only 1 jmp seg per function
     assert(cseg == CODE || cseg > COMD);
+    if (elfobj.ARM32 && Offset(cseg) != 0)
+        ElfObj_armMappingSymbol(cseg, Offset(cseg), ArmMappingKind.arm);
 if (ELF_COMDAT())
 {
     if (!symbol_iscomdat2(sfunc))

@@ -1314,6 +1314,17 @@ extern (C++) struct Target
     }
 
     /**
+     * Floating-point procedure-call ABI name exposed through getTargetInfo.
+     *
+     * ARM32 Android uses hardware FP instructions with the base/core-register
+     * calling convention, i.e. softfp.
+     */
+    extern (D) const(char)[] floatAbiName() const nothrow @nogc @safe
+    {
+        return isARM32 ? "softfp" : "hard";
+    }
+
+    /**
      * Get targetInfo by key
      * Params:
      *  name = name of targetInfo to get
@@ -1341,7 +1352,7 @@ extern (C++) struct Target
                     return stringExp("macho");
                 return stringExp("elf");
             case floatAbi.stringof:
-                return stringExp("hard");
+                return stringExp(floatAbiName());
             case cppRuntimeLibrary.stringof:
                 if (os == Target.OS.Windows)
                     return stringExp(driverParams.mscrtlib);
