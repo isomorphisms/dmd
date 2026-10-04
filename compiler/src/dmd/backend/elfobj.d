@@ -41,6 +41,9 @@ import dmd.backend.symbol;
 import dmd.backend.ty;
 import dmd.backend.type;
 import dmd.backend.arm.instr;
+import dmd.backend.arm32.elfreloc :
+    arm32RelocationPreservesTarget, arm32RelocationSize;
+import dmd.backend.arm32.attributes : androidArmeabiV7aAttributes;
 
 import dmd.common.outbuffer;
 
@@ -731,6 +734,15 @@ Obj ElfObj_init(OutBuffer* objbuf, const(char)* filename, const(char)* csegname)
 
     elf_addsegment2(SHN_COM, STI_COM, 0);
     assert(SegData[COMD].SDseg == COMD);
+
+    if (elfobj.ARM32)
+    {
+        const attrseg = ElfObj_getsegment(
+            ".ARM.attributes", null, SHT_ARM_ATTRIBUTES, 0, 1);
+        assert(SegData[attrseg].SDbuf.length() == 0);
+        SegData[attrseg].SDbuf.write(androidArmeabiV7aAttributes);
+        Offset(attrseg) = androidArmeabiV7aAttributes.length;
+    }
 
     dwarf_initfile(filename);
     return obj;
@@ -2662,6 +2674,9 @@ private size_t relsize64(uint type)
 private size_t relsize32(uint type)
 {
     assert(I32);
+    if (elfobj.ARM32)
+        return arm32RelocationSize(type);
+
     switch (type)
     {
         case R_386_NONE:         return 0;
@@ -2751,9 +2766,12 @@ size_t ElfObj_writerel(int targseg, size_t offset, reltype_t reltype,
     else
     {
         assert(I32);
-        // Elf32_Rel stores addend in target location
+        // Elf32_Rel stores the addend in the target location. ARM instruction
+        // relocations already carry that addend in their emitted opcode, so do
+        // not overwrite the instruction with a raw integer displacement.
         sz = relsize32(reltype);
-        writeaddrval(targseg, offset, val, sz);
+        if (!elfobj.ARM32 || !arm32RelocationPreservesTarget(reltype))
+            writeaddrval(targseg, offset, val, sz);
         ElfObj_addrel(targseg, offset, reltype, symidx, 0);
     }
     return sz;
@@ -2890,6 +2908,8 @@ int ElfObj_reftoident(int seg, targ_size_t offset, Symbol* s, targ_size_t val,
 {
     if (elfobj.AArch64)
         return ElfObj_reftoidentAArch64(seg, offset, s, val, flags);
+    if (elfobj.ARM32)
+        return ElfObj_reftoidentARM32(seg, offset, s, val, flags);
 
     bool external = true;
     reltype_t relinfo = R_X86_64_NONE;
@@ -3160,6 +3180,57 @@ static if (0)
             //symbol_print(s);
             assert(0);
     }
+    return refSize;
+}
+
+/**
+ * Register an A32 direct function call relocation.
+ *
+ * The caller must have emitted an A32 BL/BLX instruction carrying the REL
+ * addend. For the usual unresolved BL placeholder this is BL with a target
+ * displacement of zero, encoded as 0xEBFFFFFE (addend -8).
+ *
+ * Other ARM32 reference kinds remain deliberately unsupported here so they
+ * cannot silently fall through to the x86 ELF32 relocation path.
+ */
+int ElfObj_reftoidentARM32(int seg, targ_size_t offset, Symbol* s, targ_size_t val,
+        int flags)
+{
+    assert(I32);
+    assert(elfobj.ARM32);
+    assert(!(flags & CF.offset64));
+    assert((flags & CF.selfrel) && tyfunc(s.ty()),
+        "ARM32 ELF reference kind not implemented");
+
+    enum int refSize = 4;
+
+    switch (s.Sclass)
+    {
+        case SC.locstat:
+        case SC.comdat:
+        case SC.static_:
+        case SC.extern_:
+        case SC.comdef:
+        case SC.global:
+        case SC.sinline:
+        case SC.einline:
+        case SC.inline:
+            break;
+
+        default:
+            assert(0, "unsupported ARM32 call symbol class");
+    }
+
+    if (!s.Sxtrnnum)
+    {
+        const size_t numbyteswritten = addtofixlist(s, offset, seg, val, flags);
+        assert(numbyteswritten == refSize);
+        return refSize;
+    }
+
+    const size_t nbytes = ElfObj_writerel(
+        seg, cast(uint)offset, R_ARM_CALL, s.Sxtrnnum, 0);
+    assert(nbytes == refSize);
     return refSize;
 }
 
