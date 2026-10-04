@@ -231,9 +231,17 @@ void addPredefinedGlobalIdentifiers(const ref Target tgt)
     addCRuntimePredefinedGlobalIdent(tgt.c);
     addCppRuntimePredefinedGlobalIdent(tgt.cpp);
 
+    if (tgt.isAndroid)
+        VersionCondition.addPredefinedGlobalIdent("Android");
+
     if (tgt.isAArch64)
     {
         VersionCondition.addPredefinedGlobalIdent("AArch64");
+    }
+    else if (tgt.isARM32)
+    {
+        VersionCondition.addPredefinedGlobalIdent("ARM");
+        VersionCondition.addPredefinedGlobalIdent("ARM_SoftFP");
     }
     else if (tgt.isX86_64)
     {
@@ -375,6 +383,7 @@ extern (C++) struct Target
     const(char)[] architectureName;
     CPU cpu;                // CPU instruction set to target
     bool isAArch64;         // generate 64 bit Arm code
+    bool isARM32;           // generate 32 bit Arm code
     bool isX86_64;          // generate 64 bit code for x86_64; true by default for 64 bit dmd
     bool isX86;             // generate 32 bit Intel x86 code
     bool isLP64;            // pointers are 64 bits
@@ -431,10 +440,9 @@ extern (C++) struct Target
      */
     extern (C++) void _init(ref const Param params)
     {
-        // isX86_64 and cpu are initialized in parseCommandLine
-        //printf("isX86_64 %d isAArch64 %d\n", isX86_64, isAArch64);
-        isX86 = !isX86_64 && !isAArch64;
-        assert(isX86 + isX86_64 + isAArch64 == 1); // there can be only one
+        // Architecture selection is initialized before Target._init().
+        isX86 = !isX86_64 && !isAArch64 && !isARM32;
+        assert(isX86 + isX86_64 + isAArch64 + isARM32 == 1); // exactly one
 
         this.params = &params;
 
@@ -499,6 +507,15 @@ extern (C++) struct Target
             realalignsize = 8;
         }
 
+        // Android/Arm32 follows the platform C ABI: long double and D real are
+        // IEEE binary64, naturally aligned to 8 bytes.
+        if (isARM32)
+        {
+            realsize = 8;
+            realpad = 0;
+            realalignsize = 8;
+        }
+
         c.initialize(params, this);
         cpp.initialize(params, this);
         objc.initialize(params, this);
@@ -509,6 +526,8 @@ extern (C++) struct Target
             architectureName = "X86";
         else if (isAArch64)
             architectureName = "AArch64";
+        else if (isARM32)
+            architectureName = "ARM";
         else
             assert(0);
 
@@ -552,6 +571,14 @@ extern (C++) struct Target
      */
     void setCPU() @safe
     {
+        // CPU currently models x86 feature levels. Keep the neutral baseline
+        // marker for ARM32 until ARM-specific tuning is introduced.
+        if (isARM32)
+        {
+            cpu = CPU.baseline;
+            return;
+        }
+
         if(!isXmmSupported())
         {
             cpu = CPU.x87;   // cannot support other instruction sets
@@ -1404,6 +1431,14 @@ extern (C++) struct Target
         return (os & Target.OS.Posix) != 0;
     }
 
+    /**
+     * Android is represented as Linux with the Bionic C runtime.
+     */
+    extern (D) @property bool isAndroid() scope const nothrow @nogc @safe
+    {
+        return os == Target.OS.linux && c.runtime == TargetC.Runtime.Bionic;
+    }
+
     /*********************
      * Returns:
      *  alignment of the stack
@@ -1413,6 +1448,7 @@ extern (C++) struct Target
         uint sz = isXmmSupported() ? 16 :
                   isX86_64         ?  8 :
                   isAArch64        ?  8 :
+                  isARM32          ?  8 :
                   isX86            ?  4 : 0;
         assert(sz);
         return sz;
@@ -1535,7 +1571,8 @@ struct TargetC
         if (bitFieldStyle == BitFieldStyle.Gcc_Clang)
         {
             // sufficient for DMD's currently supported architectures
-            return !bfd.isAnonymous() || (target.isAArch64 && target.os != Target.OS.OSX);
+            return !bfd.isAnonymous() ||
+                ((target.isAArch64 || target.isARM32) && target.os != Target.OS.OSX);
         }
         assert(0);
     }

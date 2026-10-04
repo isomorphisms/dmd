@@ -3,7 +3,9 @@
 module arm32aapcs;
 
 import dmd.backend.arm32.aapcs :
-    AAPCS32Allocator, MachineType, Placement, resultPlacement;
+    AAPCS32Allocator, ArgumentExtension, FundamentalArgument,
+    MachineType, Placement, marshalComposite, marshalFundamental,
+    resultPlacement;
 
 @("AAPCS32 softfp scalars use core registers")
 unittest
@@ -113,4 +115,72 @@ unittest
 
     auto d = resultPlacement(MachineType.float64);
     assert(d.firstRegister == 0 && d.registerCount == 2 && !d.usesStack);
+}
+
+
+@("AAPCS32 Stage B extends sub-word integral arguments")
+unittest
+{
+    auto sb = marshalFundamental(FundamentalArgument.signedByte);
+    assert(sb.size == 4 && sb.alignment == 4);
+    assert(sb.extension == ArgumentExtension.signExtend);
+    assert(!sb.indirect);
+
+    auto uh = marshalFundamental(FundamentalArgument.unsignedHalf);
+    assert(uh.size == 4 && uh.alignment == 4);
+    assert(uh.extension == ArgumentExtension.zeroExtend);
+
+    auto hf = marshalFundamental(FundamentalArgument.halfFloat);
+    assert(hf.size == 4 && hf.alignment == 4);
+    assert(hf.extension == ArgumentExtension.unspecifiedUpperBits);
+}
+
+@("AAPCS32 Stage B keeps softfp float machine sizes")
+unittest
+{
+    auto f = marshalFundamental(FundamentalArgument.float32);
+    assert(f.size == 4 && f.alignment == 4);
+    assert(f.extension == ArgumentExtension.none);
+
+    auto d = marshalFundamental(FundamentalArgument.float64);
+    assert(d.size == 8 && d.alignment == 8);
+    assert(d.extension == ArgumentExtension.none);
+}
+
+@("AAPCS32 Stage B rounds known composites to words")
+unittest
+{
+    auto a = marshalComposite(5, 1);
+    assert(a.size == 8 && a.alignment == 4 && !a.indirect);
+
+    auto b = marshalComposite(12, 8);
+    assert(b.size == 12 && b.alignment == 8 && !b.indirect);
+
+    auto overAligned = marshalComposite(12, 16);
+    assert(overAligned.size == 12 && overAligned.alignment == 8);
+}
+
+@("AAPCS32 Stage B replaces dynamic composites by a pointer")
+unittest
+{
+    auto a = marshalComposite(0, 8, false);
+    assert(a.size == 4 && a.alignment == 4);
+    assert(a.indirect);
+    assert(a.extension == ArgumentExtension.none);
+}
+
+@("Stage B output feeds Stage C placement directly")
+unittest
+{
+    AAPCS32Allocator abi;
+
+    auto byteArg = marshalFundamental(FundamentalArgument.signedByte);
+    auto composite = marshalComposite(8, 8);
+
+    auto a = abi.place(byteArg);
+    assert(a.firstRegister == 0 && a.registerCount == 1);
+
+    // Double-word aligned composite skips r1 and occupies r2-r3.
+    auto b = abi.place(composite);
+    assert(b.firstRegister == 2 && b.registerCount == 2);
 }
